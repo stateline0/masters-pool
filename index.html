@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Masters 2026 — Pool</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --bg-secondary: #f5f5f4;
+      --bg-tertiary: #fafaf9;
+      --text: #1c1917;
+      --text-secondary: #78716c;
+      --text-tertiary: #a8a29e;
+      --border: rgba(0,0,0,0.10);
+      --border-mid: rgba(0,0,0,0.18);
+      --border-strong: rgba(0,0,0,0.30);
+      --green-bg: #dcfce7;
+      --radius: 8px;
+      --radius-lg: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1917;
+        --bg-secondary: #292524;
+        --bg-tertiary: #211f1e;
+        --text: #fafaf9;
+        --text-secondary: #a8a29e;
+        --text-tertiary: #78716c;
+        --border: rgba(255,255,255,0.10);
+        --border-mid: rgba(255,255,255,0.18);
+        --border-strong: rgba(255,255,255,0.28);
+        --green-bg: #14532d55;
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg-tertiary);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Top bar ── */
+    .topbar {
+      background: #1a5c2a;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .topbar-flag {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .topbar h1 { font-size: 16px; font-weight: 600; color: #fff; letter-spacing: 0.01em; }
+    .topbar p { font-size: 12px; color: rgba(255,255,255,0.65); margin-top: 1px; }
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+    .live-badge {
+      font-size: 11px; font-weight: 600; padding: 3px 9px;
+      border-radius: 99px; background: #ef4444; color: #fff;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .live-badge::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%; background: #fff;
+    }
+    .refresh-btn {
+      font-size: 12px; padding: 5px 12px; border-radius: var(--radius);
+      background: rgba(255,255,255,0.15); color: #fff;
+      border: 1px solid rgba(255,255,255,0.25);
+      cursor: pointer; transition: background .15s;
+    }
+    .refresh-btn:hover { background: rgba(255,255,255,0.25); }
+    .last-updated { font-size: 11px; color: rgba(255,255,255,0.55); }
+
+    /* ── Tabs ── */
+    .tab-bar {
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      display: flex; gap: 0;
+      overflow-x: auto;
+    }
+    .tab-bar::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      padding: 12px 16px; font-size: 13px; font-weight: 500;
+      color: var(--text-secondary); background: none; border: none;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+      cursor: pointer; white-space: nowrap; transition: color .15s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--text); border-bottom-color: #1a5c2a; }
+
+    /* ── Main content ── */
+    .main { max-width: 960px; margin: 0 auto; padding: 20px 16px 48px; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Scorecard ── */
+    .section { margin-bottom: 28px; }
+    .sec-hdr {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 8px; flex-wrap: wrap;
+    }
+    .pname {
+      font-size: 13px; font-weight: 600; padding: 3px 12px;
+      border-radius: 99px; color: #fff;
+    }
+    .pool-pos { font-size: 12px; color: var(--text-secondary); }
+    .pool-score { font-size: 14px; font-weight: 600; color: var(--text); }
+
+    .sc-wrap { overflow-x: auto; border-radius: var(--radius-lg); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; background: var(--bg); }
+    table:first-child { border-radius: var(--radius-lg) var(--radius-lg) 0 0; overflow: hidden; }
+
+    thead tr { background: var(--bg-secondary); }
+    th {
+      padding: 7px 10px; text-align: center;
+      font-size: 10px; font-weight: 600; color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase; letter-spacing: .05em; white-space: nowrap;
+    }
+    th.left { text-align: left; }
+    td {
+      padding: 6px 10px; border-bottom: 1px solid var(--border);
+      text-align: center; vertical-align: middle; color: var(--text);
+    }
+    td.left { text-align: left; }
+    tr:last-child td { border-bottom: none; }
+
+    tr.tier-start td { border-top: 2px solid var(--border-strong); }
+    td.best-score { background: var(--green-bg); }
+
+    tr.cut-row td { opacity: .4; }
+    tr.cut-row .pn { text-decoration: line-through; }
+
+    tr.summary-row td {
+      border-top: 2px solid var(--border-strong);
+      background: var(--bg-secondary);
+      font-weight: 600; color: var(--text);
+    }
+    tr.summary-row td.left { font-size: 11px; color: var(--text-secondary); }
+
+    .pn { font-size: 12px; color: var(--text); }
+    .tier-badge { font-size: 9px; color: var(--text-tertiary); margin-left: 5px; }
+    .pos-cell { font-size: 11px; color: var(--text-secondary); }
+
+    .rcell { display: inline-flex; align-items: baseline; gap: 8px; }
+    .rscore { font-size: 12px; font-weight: 500; color: var(--text); }
+    .rthru { font-size: 9px; color: var(--text-secondary); white-space: nowrap; }
+    .rthru.live { color: #dc2626; }
+    .live-dot {
+      display: inline-block; width: 5px; height: 5px;
+      border-radius: 50%; background: #dc2626;
+      margin-right: 2px; vertical-align: middle;
+    }
+
+    /* ── Standings cards ── */
+    .standings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 12px; margin-bottom: 24px;
+    }
+    .pc {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 14px 16px;
+    }
+    .pc.lead { border-width: 2px; }
+    .pc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .pc-name { font-size: 13px; font-weight: 600; }
+    .pc-rank { font-size: 12px; color: var(--text-secondary); }
+    .pc-score { font-size: 28px; font-weight: 700; color: var(--text); line-height: 1; }
+    .pc-sub { font-size: 11px; color: var(--text-secondary); margin-top: 3px; margin-bottom: 10px; }
+    .pc-rows { display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px; }
+    .pc-row { display: flex; justify-content: space-between; font-size: 11px; padding: 2px 4px; border-radius: 4px; background: var(--bg-secondary); }
+    .pc-row .gl { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+    .pc-row .gr { font-weight: 600; }
+
+    /* ── Leaderboard ── */
+    .lb-note { font-size: 11px; color: var(--text-secondary); margin-bottom: 10px; }
+    .lb-note span { background: #fef9c3; padding: 1px 5px; border-radius: 3px; }
+    tr.inpool td { background: #fef9c3; }
+    @media (prefers-color-scheme: dark) {
+      tr.inpool td { background: #422006; }
+      .lb-note span { background: #422006; }
+    }
+    tr.inpool.cut-row td { opacity: .5; }
+
+    /* ── Loading ── */
+    .loading { padding: 40px; text-align: center; font-size: 13px; color: var(--text-secondary); }
+
+    @media (max-width: 480px) {
+      .main { padding: 12px 10px 40px; }
+      .topbar { padding: 10px 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-flag">⛳</div>
+    <div>
+      <h1>Masters 2026 — Family Pool</h1>
+      <p>8 tiers · 2 picks each · best score counts</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="live-badge" id="live-badge">Live</span>
+    <button class="refresh-btn" onclick="load()">↻ Refresh</button>
+    <span class="last-updated" id="lu"></span>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="sw('standings',this)">Standings</button>
+  <button class="tab-btn" onclick="sw('scorecard',this)">Scorecard</button>
+  <button class="tab-btn" onclick="sw('leaderboard',this)">Leaderboard</button>
+</div>
+
+<div class="main">
+  <div id="tab-standings" class="tab-panel active"><div class="loading">Loading…</div></div>
+  <div id="tab-scorecard" class="tab-panel"><div class="loading">Loading…</div></div>
+  <div id="tab-leaderboard" class="tab-panel"><div class="loading">Loading…</div></div>
+</div>
+
+<script>
+// ── CONFIG — edit picks and names here ──────────────────────────────────────
+const COLORS = {
+  Conner: '#1d9e75', Nick: '#378add', Zach: '#d85a30', Jaden: '#9333ea', Dad: '#b45309'
+};
+const NAMES = ['Conner', 'Nick', 'Zach', 'Jaden', 'Dad'];
+
+const TIERS = [
+  { name: 'T1', players: ['Scheffler','Rahm','DeChambeau','McIlroy','Åberg'] },
+  { name: 'T2', players: ['Schauffele','Fleetwood','Young','Fitzpatrick','Matsuyama'] },
+  { name: 'T3', players: ['Morikawa','Min Woo Lee','Rose','MacIntyre','Koepka'] },
+  { name: 'T4', players: ['Spieth','Reed','Gotterup','Hovland','Henley'] },
+  { name: 'T5', players: ['Si Woo Kim','Thomas','Bhatia','Cantlay','Scott'] },
+  { name: 'T6', players: ['Knapp','Lowry','Day','Spaun','Burns'] },
+  { name: 'T7', players: ['N. Hojgaard','Straka','McNealy','Hatton','Bridgeman'] },
+  { name: 'T8', players: ['Conners','Kityama','English','Griffin','Smith'] },
+];
+
+// [tier0_pick_indices, tier1_pick_indices, ...] — 0-based index into each tier's players array
+const PICKS = {
+  Conner: [[0,4],[0,1],[0,3],[2,4],[0,2],[0,4],[0,2],[0,2]],
+  Nick:   [[0,2],[0,1],[0,4],[1,3],[1,2],[1,3],[1,3],[0,2]],
+  Zach:   [[0,3],[1,2],[0,1],[1,3],[0,2],[1,2],[0,4],[0,4]],
+  Jaden:  [[0,2],[1,3],[2,3],[1,3],[2,4],[1,2],[3,4],[0,4]],
+  Dad:    [[0,4],[0,4],[0,2],[0,1],[0,2],[3,4],[1,4],[0,2]],
+};
+
+const FULLNAMES = {
+  'Scheffler':'Scottie Scheffler','Rahm':'Jon Rahm','DeChambeau':'Bryson DeChambeau',
+  'McIlroy':'Rory McIlroy','Åberg':'Ludvig Åberg','Schauffele':'Xander Schauffele',
+  'Fleetwood':'Tommy Fleetwood','Young':'Cameron Young','Fitzpatrick':'Matthew Fitzpatrick',
+  'Matsuyama':'Hideki Matsuyama','Morikawa':'Collin Morikawa','Min Woo Lee':'Min Woo Lee',
+  'Rose':'Justin Rose','MacIntyre':'Robert MacIntyre','Koepka':'Brooks Koepka',
+  'Spieth':'Jordan Spieth','Reed':'Patrick Reed','Gotterup':'Chris Gotterup',
+  'Hovland':'Viktor Hovland','Henley':'Russell Henley','Si Woo Kim':'Si Woo Kim',
+  'Thomas':'Justin Thomas','Bhatia':'Akshay Bhatia','Cantlay':'Patrick Cantlay',
+  'Scott':'Adam Scott','Knapp':'Jake Knapp','Lowry':'Shane Lowry','Day':'Jason Day',
+  'Spaun':'J.J. Spaun','Burns':'Sam Burns','N. Hojgaard':'Nicolai Hojgaard',
+  'Straka':'Sepp Straka','McNealy':'Maverick McNealy','Hatton':'Tyrrell Hatton',
+  'Bridgeman':'Aldrich Potgieter','Conners':'Corey Conners','Kityama':'Rikuya Hoshino',
+  'English':'Harris English','Griffin':'Lanto Griffin','Smith':'Cameron Smith',
+};
+// ── END CONFIG ──────────────────────────────────────────────────────────────
+
+let playerMap = {};
+
+function norm(s) {
+  return (s||'').toLowerCase()
+    .replace(/[åä]/g,'a').replace(/[öü]/g,'u').replace(/[éè]/g,'e')
+    .replace(/[^a-z ]/g,'').trim();
+}
+
+function lookup(sn) {
+  const full = FULLNAMES[sn] || sn;
+  const nf = norm(full);
+  if (playerMap[nf]) return playerMap[nf];
+  const last = nf.split(' ').pop();
+  if (last.length > 3) {
+    const k = Object.keys(playerMap).find(k => k.endsWith(' ' + last) || k === last);
+    if (k) return playerMap[k];
+  }
+  return null;
+}
+
+function fmt(s) {
+  if (s === null || s === undefined || isNaN(s)) return '-';
+  if (s === 0) return 'E';
+  return s < 0 ? '' + s : '+' + s;
+}
+
+function assignPositions(entries) {
+  const sorted = [...entries].sort((a, b) => {
+    if (a.cut && !b.cut) return 1;
+    if (!a.cut && b.cut) return -1;
+    return (a.topar ?? 99) - (b.topar ?? 99);
+  });
+  const posMap = {};
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i;
+    while (j < sorted.length && sorted[j].topar === sorted[i].topar && sorted[j].cut === sorted[i].cut) j++;
+    const label = sorted[i].cut ? 'CUT' : (j - i > 1 ? 'T' + (i + 1) : '' + (i + 1));
+    for (let k = i; k < j; k++) posMap[sorted[k].key] = label;
+    i = j;
+  }
+  return posMap;
+}
+
+function roundCell(completedStroke, activeTopar, thru, isActive, isFuture, isBest) {
+  const bg = isBest ? ' best-score' : '';
+  if (isFuture) return `<td class="${bg}" style="color:var(--text-tertiary);">-</td>`;
+  let scoreStr = '', thruHtml = '';
+  if (completedStroke !== null && completedStroke !== undefined) {
+    scoreStr = fmt(completedStroke - 72);
+    thruHtml = `<span class="rthru">F·${completedStroke}</span>`;
+  } else if (isActive) {
+    scoreStr = fmt(activeTopar);
+    const tv = (thru && thru !== '-' && thru !== 'F') ? thru : '';
+    thruHtml = tv
+      ? `<span class="rthru live"><span class="live-dot"></span>${tv}</span>`
+      : `<span class="rthru live"><span class="live-dot"></span>Live</span>`;
+  } else {
+    return `<td class="${bg}" style="color:var(--text-tertiary);">-</td>`;
+  }
+  return `<td class="${bg}"><div class="rcell"><span class="rscore">${scoreStr}</span>${thruHtml}</div></td>`;
+}
+
+async function load() {
+  document.getElementById('lu').textContent = 'Fetching…';
+  try {
+    const urls = [
+      'https://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard?league=pga',
+      'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard',
+    ];
+    let competitors = [];
+    for (const url of urls) {
+      try {
+        const r = await fetch(url);
+        const d = await r.json();
+        const m = (d.events || []).find(e => (e.name || '').toLowerCase().includes('master'));
+        if (m) {
+          const comps = m.competitions?.[0]?.competitors || [];
+          if (comps.length) { competitors = comps; break; }
+        }
+      } catch(e) {}
+    }
+    if (competitors.length) {
+      playerMap = {};
+      const entries = [];
+      competitors.forEach(c => {
+        const name = c.athlete?.displayName || c.athlete?.shortName || '';
+        const key = norm(name);
+        const ls = c.linescores || [];
+        const rounds = ls.map(l => { const v = l.value; return (v === '-' || v == null || v === '') ? null : parseInt(v) || null; });
+        while (rounds.length < 4) rounds.push(null);
+        const tp = c.score?.toPar ?? c.toPar ?? 0;
+        const topar = typeof tp === 'string' ? (tp === 'E' ? 0 : parseInt(tp) || 0) : parseInt(tp) || 0;
+        const thru = c.status?.thru ?? c.status?.displayValue ?? '-';
+        const typeDesc = (c.status?.type?.description || c.status?.type?.name || '').toLowerCase();
+        const cut = typeDesc.includes('cut') || typeDesc.includes('wd') || typeDesc.includes('dq');
+        const finished = typeDesc.includes('final') || thru === 'F' || thru === 'Final';
+        const active = !finished && !cut;
+        const period = c.status?.period || 1;
+        const apiPos = c.status?.position?.displayName || c.status?.position?.abbreviation || '';
+        playerMap[key] = { name, topar, thru, rounds, cut, active, finished, period, apiPos };
+        entries.push({ key, topar, cut });
+      });
+      const posMap = assignPositions(entries);
+      Object.keys(playerMap).forEach(k => {
+        playerMap[k].pos = playerMap[k].apiPos || posMap[k] || '-';
+      });
+      document.getElementById('lu').textContent = 'Updated ' + new Date().toLocaleTimeString();
+      document.getElementById('live-badge').style.display = '';
+    } else {
+      document.getElementById('lu').textContent = 'Using demo data';
+      document.getElementById('live-badge').style.display = 'none';
+      loadDemo();
+    }
+  } catch(e) {
+    document.getElementById('lu').textContent = 'Demo data';
+    loadDemo();
+  }
+  renderAll();
+}
+
+function loadDemo() {
+  const raw = [
+    ['Scottie Scheffler',-5,'11',true,1,[null,null,null,null]],
+    ['Rory McIlroy',-4,'12',true,1,[null,null,null,null]],
+    ['Tommy Fleetwood',-4,'13',true,1,[null,null,null,null]],
+    ['Bryson DeChambeau',-3,'9',true,1,[null,null,null,null]],
+    ['Xander Schauffele',-3,'10',true,1,[null,null,null,null]],
+    ['Collin Morikawa',-3,'11',true,1,[null,null,null,null]],
+    ['Ludvig Åberg',-2,'8',true,1,[null,null,null,null]],
+    ['Min Woo Lee',-2,'10',true,1,[null,null,null,null]],
+    ['Viktor Hovland',-2,'11',true,1,[null,null,null,null]],
+    ['Jordan Spieth',-2,'12',true,1,[null,null,null,null]],
+    ['Jon Rahm',-1,'7',true,1,[null,null,null,null]],
+    ['Hideki Matsuyama',-1,'F',false,1,[71,null,null,null]],
+    ['Robert MacIntyre',-1,'7',true,1,[null,null,null,null]],
+    ['Si Woo Kim',-1,'10',true,1,[null,null,null,null]],
+    ['Jason Day',-1,'11',true,1,[null,null,null,null]],
+    ['Tyrrell Hatton',-1,'10',true,1,[null,null,null,null]],
+    ['Akshay Bhatia',-1,'8',true,1,[null,null,null,null]],
+    ['Matthew Fitzpatrick',0,'9',true,1,[null,null,null,null]],
+    ['Chris Gotterup',0,'6',true,1,[null,null,null,null]],
+    ['Shane Lowry',0,'10',true,1,[null,null,null,null]],
+    ['Nicolai Hojgaard',0,'9',true,1,[null,null,null,null]],
+    ['Patrick Cantlay',0,'9',true,1,[null,null,null,null]],
+    ['Justin Rose',1,'8',true,1,[null,null,null,null]],
+    ['Patrick Reed',1,'8',true,1,[null,null,null,null]],
+    ['Russell Henley',1,'9',true,1,[null,null,null,null]],
+    ['Sam Burns',1,'8',true,1,[null,null,null,null]],
+    ['Corey Conners',1,'9',true,1,[null,null,null,null]],
+    ['Adam Scott',1,'7',true,1,[null,null,null,null]],
+    ['Cameron Smith',1,'10',true,1,[null,null,null,null]],
+    ['Cameron Young',1,'6',true,1,[null,null,null,null]],
+    ['Justin Thomas',2,'7',true,1,[null,null,null,null]],
+    ['Brooks Koepka',2,'9',true,1,[null,null,null,null]],
+    ['Sepp Straka',2,'7',true,1,[null,null,null,null]],
+    ['Jake Knapp',2,'8',true,1,[null,null,null,null]],
+    ['Harris English',2,'7',true,1,[null,null,null,null]],
+    ['J.J. Spaun',3,'6',true,1,[null,null,null,null]],
+    ['Maverick McNealy',3,'8',true,1,[null,null,null,null]],
+    ['Rikuya Hoshino',3,'8',true,1,[null,null,null,null]],
+    ['Aldrich Potgieter',4,'7',true,1,[null,null,null,null]],
+    ['Lanto Griffin',4,'9',true,1,[null,null,null,null]],
+  ];
+  playerMap = {};
+  const entries = raw.map(([n,tp]) => ({ key: norm(n), topar: tp, cut: false }));
+  const posMap = assignPositions(entries);
+  raw.forEach(([n, tp, thru, active, period, rounds]) => {
+    const finished = thru === 'F';
+    const key = norm(n);
+    playerMap[key] = { name: n, topar: tp, thru, active: active && !finished, finished, cut: false, period, rounds, pos: posMap[key] || '-' };
+  });
+}
+
+function computeAllTotals() {
+  return NAMES.map(pName => {
+    const tierBests = TIERS.map((tier, ti) => {
+      const rows = PICKS[pName][ti].map(idx => {
+        const sn = tier.players[idx];
+        const d = lookup(sn) || { topar: null, thru: '-', rounds: [null,null,null,null], cut: false, active: false, finished: false, period: 1 };
+        const rounds = (d.rounds || []).slice(0, 4);
+        while (rounds.length < 4) rounds.push(null);
+        return { ...d, rounds };
+      });
+      rows.sort((a, b) => { if (a.cut && !b.cut) return 1; if (!a.cut && b.cut) return -1; return (a.topar ?? 99) - (b.topar ?? 99); });
+      return rows[0];
+    });
+    const currentTotal = tierBests.reduce((s, b) => s + (b.topar ?? 0), 0);
+    const roundTotals = [currentTotal, null, null, null];
+    for (let ri = 1; ri < 4; ri++) {
+      let sum = 0, complete = true;
+      tierBests.forEach(best => {
+        let cum = 0;
+        for (let k = 0; k <= ri; k++) {
+          if (best.rounds[k] === null) { complete = false; }
+          else cum += best.rounds[k] - 72;
+        }
+        if (complete) sum += cum;
+      });
+      roundTotals[ri] = complete ? sum : null;
+    }
+    return { name: pName, currentTotal, roundTotals };
+  });
+}
+
+const ORDINALS = ['1st','2nd','3rd','4th','5th'];
+
+function renderAll() {
+  renderStandings();
+  renderScorecard();
+  renderLeaderboard();
+}
+
+function renderStandings() {
+  const allScores = computeAllTotals();
+  const ranked = [...allScores].sort((a, b) => a.currentTotal - b.currentTotal);
+  const poolPos = {};
+  ranked.forEach((p, i) => poolPos[p.name] = ORDINALS[i]);
+
+  let html = '<div class="standings-grid">';
+  ranked.forEach((p, rank) => {
+    const color = COLORS[p.name];
+    const tierBests = TIERS.map((tier, ti) => {
+      const rows = PICKS[p.name][ti].map(idx => {
+        const sn = tier.players[idx];
+        const d = lookup(sn) || { topar: null, cut: false };
+        return { sn, ...d };
+      });
+      rows.sort((a, b) => { if (a.cut && !b.cut) return 1; if (!a.cut && b.cut) return -1; return (a.topar ?? 99) - (b.topar ?? 99); });
+      return { tier: tier.name, best: rows[0] };
+    });
+    html += `<div class="pc${rank === 0 ? ' lead' : ''}" style="${rank === 0 ? 'border-color:' + color : ''}">
+      <div class="pc-top">
+        <span class="pc-name" style="color:${color}">${p.name}</span>
+        <span class="pc-rank">${ORDINALS[rank]}</span>
+      </div>
+      <div class="pc-score">${fmt(p.currentTotal)}</div>
+      <div class="pc-sub">pool total</div>
+      <div class="pc-rows">`;
+    tierBests.forEach(g => {
+      html += `<div class="pc-row">
+        <span class="gl">${g.tier}: ${g.best?.sn || '-'}</span>
+        <span class="gr">${fmt(g.best?.topar)}</span>
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+  html += '</div>';
+  document.getElementById('tab-standings').innerHTML = html;
+}
+
+function renderScorecard() {
+  const allScores = computeAllTotals();
+  const ranked = [...allScores].sort((a, b) => a.currentTotal - b.currentTotal);
+  const poolPos = {};
+  ranked.forEach((p, i) => poolPos[p.name] = ORDINALS[i]);
+
+  let html = '';
+  NAMES.forEach(pName => {
+    const color = COLORS[pName];
+    const { currentTotal, roundTotals } = allScores.find(s => s.name === pName);
+
+    const tierData = TIERS.map((tier, ti) => {
+      const rows = PICKS[pName][ti].map(idx => {
+        const sn = tier.players[idx];
+        const d = lookup(sn) || { topar: null, thru: '-', rounds: [null,null,null,null], cut: false, active: false, finished: false, period: 1, pos: '-' };
+        const rounds = (d.rounds || []).slice(0, 4);
+        while (rounds.length < 4) rounds.push(null);
+        return { sn, tier: tier.name, ...d, rounds };
+      });
+      rows.sort((a, b) => { if (a.cut && !b.cut) return 1; if (!a.cut && b.cut) return -1; return (a.topar ?? 99) - (b.topar ?? 99); });
+      rows[0].isBest = true;
+      return rows;
+    });
+
+    html += `<div class="section">
+      <div class="sec-hdr">
+        <span class="pname" style="background:${color}">${pName}</span>
+        <span class="pool-pos">${poolPos[pName]}</span>
+        <span class="pool-score">${fmt(currentTotal)}</span>
+      </div>
+      <div class="sc-wrap"><table>
+        <thead><tr>
+          <th class="left">Player</th><th>Pos</th>
+          <th>R1</th><th>R2</th><th>R3</th><th>R4</th><th>Total</th>
+        </tr></thead><tbody>`;
+
+    tierData.forEach((rows, ti) => {
+      rows.forEach((r, ri) => {
+        const bg = r.isBest ? ' best-score' : '';
+        const roundCols = r.rounds.map((rv, k) => {
+          const isCompleted = rv !== null;
+          const isCurrentRound = !r.cut && !r.finished && r.period === (k + 1) && r.active;
+          const isFuture = !isCompleted && !isCurrentRound;
+          return roundCell(isCompleted ? rv : null, isCurrentRound ? r.topar : null, r.thru, isCurrentRound, isFuture, r.isBest);
+        });
+        html += `<tr class="${r.cut ? 'cut-row' : ''}${ri === 0 ? ' tier-start' : ''}">
+          <td class="left"><span class="pn">${r.sn}</span><span class="tier-badge">${r.tier}</span></td>
+          <td class="pos-cell">${r.pos || '-'}</td>
+          ${roundCols.join('')}
+          <td class="${bg}">${fmt(r.topar)}</td>
+        </tr>`;
+      });
+    });
+
+    const sumCells = [0,1,2,3].map(ri => `<td>${roundTotals[ri] !== null ? fmt(roundTotals[ri]) : '-'}</td>`);
+    html += `<tr class="summary-row tier-start">
+      <td class="left" colspan="2">Pool total</td>
+      ${sumCells.join('')}
+      <td>${fmt(currentTotal)}</td>
+    </tr></tbody></table></div></div>`;
+  });
+  document.getElementById('tab-scorecard').innerHTML = html;
+}
+
+function renderLeaderboard() {
+  if (!Object.keys(playerMap).length) return;
+  const allPoolNames = new Set(TIERS.flatMap(t => t.players.map(p => norm(FULLNAMES[p] || p))));
+  const sorted = Object.values(playerMap).sort((a, b) => {
+    if (a.cut && !b.cut) return 1;
+    if (!a.cut && b.cut) return -1;
+    return (a.topar ?? 99) - (b.topar ?? 99);
+  });
+
+  let html = `<p class="lb-note">Players in your pool are <span>highlighted</span>. Strikethrough = missed cut.</p>
+  <div class="sc-wrap"><table>
+    <thead><tr>
+      <th>Pos</th><th class="left">Player</th>
+      <th>R1</th><th>R2</th><th>R3</th><th>R4</th><th>Total</th>
+    </tr></thead><tbody>`;
+
+  sorted.slice(0, 70).forEach(p => {
+    const inPool = allPoolNames.has(norm(p.name)) || [...allPoolNames].some(n => norm(p.name).includes(n.split(' ').pop()) && n.split(' ').pop().length > 3);
+    const roundCols = (p.rounds || [null,null,null,null]).slice(0,4).map((rv, k) => {
+      if (rv !== null) return `<td>${fmt(rv - 72)}</td>`;
+      if (!p.cut && !p.finished && p.period === (k+1) && p.active) {
+        const tv = (p.thru && p.thru !== '-' && p.thru !== 'F') ? p.thru : '';
+        return `<td><div class="rcell"><span>${fmt(p.topar)}</span>${tv ? `<span class="rthru live"><span class="live-dot"></span>${tv}</span>` : ''}</div></td>`;
+      }
+      return `<td style="color:var(--text-tertiary)">-</td>`;
+    });
+    html += `<tr class="${p.cut ? 'cut-row' : ''}${inPool ? ' inpool' : ''}">
+      <td class="pos-cell">${p.pos || '-'}</td>
+      <td class="left"><span class="pn">${p.name}</span></td>
+      ${roundCols.join('')}
+      <td>${fmt(p.topar)}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div>';
+  document.getElementById('tab-leaderboard').innerHTML = html;
+}
+
+function sw(id, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+}
+
+load();
+</script>
+</body>
+</html>
