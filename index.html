@@ -481,7 +481,8 @@ async function load() {
         const ls = c.linescores || [];
         const rounds = ls.map(l => {
           const v = parseInt(l.value);
-          return (!isNaN(v) && v >= 60 && v <= 90) ? v : null;
+          // Only accept realistic 18-hole Augusta scores (65-85); excludes par-3 contest scores
+          return (!isNaN(v) && v >= 65 && v <= 85) ? v : null;
         });
         while (rounds.length < 4) rounds.push(null);
         // Use robust to-par parser
@@ -591,7 +592,7 @@ function computeAllTotals() {
         let cum = 0;
         for (let k = 0; k <= ri; k++) {
           const rv = best.rounds[k];
-          if (rv === null || rv < 60 || rv > 90) { complete = false; break; }
+          if (rv === null || rv < 65 || rv > 85) { complete = false; break; }
           cum += rv - 72;
         }
         if (complete) sum += cum;
@@ -689,7 +690,7 @@ function renderScorecard() {
         const bg = r.isBest ? ' best-score' : '';
         const roundCols = r.rounds.map((rv, k) => {
           // A round is only "completed" if we have a realistic 18-hole stroke total
-          const isCompleted = rv !== null && rv >= 60 && rv <= 90;
+          const isCompleted = rv !== null && rv >= 65 && rv <= 85;
           const isCurrentRound = !r.cut && !r.finished && r.period === (k + 1) && r.active;
           const isFuture = !isCompleted && !isCurrentRound;
           return roundCell(isCompleted ? rv : null, isCurrentRound ? r.topar : null, r.thru, isCurrentRound, isFuture, r.isBest);
@@ -713,10 +714,19 @@ function renderScorecard() {
   document.getElementById('tab-scorecard').innerHTML = html;
 }
 
+// Players who appear in ESPN data but are not competing (ceremonial starters, etc.)
+const NON_COMPETING = new Set([
+  'fred couples', 'danny willett', 'jose maria olazabal', 'vijay singh',
+  'angel cabrera', 'mike weir', 'gary player', 'jack nicklaus', 'tom watson',
+  'fuzzy zoeller', 'ian woosnam', 'sandy lyle', 'larry mize',
+]);
+
 function renderLeaderboard() {
   if (!Object.keys(playerMap).length) return;
   const allPoolNames = new Set(TIERS.flatMap(t => t.players.map(p => norm(FULLNAMES[p] || p))));
-  const sorted = Object.values(playerMap).sort((a, b) => {
+  const sorted = Object.values(playerMap)
+    .filter(p => !NON_COMPETING.has(norm(p.name)))
+    .sort((a, b) => {
     if (a.cut && !b.cut) return 1;
     if (!a.cut && b.cut) return -1;
     return (a.topar ?? 99) - (b.topar ?? 99);
@@ -732,7 +742,7 @@ function renderLeaderboard() {
   sorted.slice(0, 70).forEach(p => {
     const inPool = allPoolNames.has(norm(p.name)) || [...allPoolNames].some(n => norm(p.name).includes(n.split(' ').pop()) && n.split(' ').pop().length > 3);
     const roundCols = (p.rounds || [null,null,null,null]).slice(0,4).map((rv, k) => {
-      if (rv !== null && rv >= 60 && rv <= 90) return `<td>${fmt(rv - 72)}</td>`;
+      if (rv !== null && rv >= 65 && rv <= 85) return `<td>${fmt(rv - 72)}</td>`;
       const isActiveRound = !p.cut && !p.finished && p.period === (k+1) && p.active;
       if (isActiveRound && p.topar !== null && p.topar !== undefined) {
         const tv = (p.thru && p.thru !== '-' && p.thru !== 'F') ? p.thru : '';
