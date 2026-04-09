@@ -344,14 +344,29 @@ function roundCell(completedStroke, activeTopar, thru, isActive, isFuture, isBes
   return `<td class="${bg}"><div class="rcell"><span class="rscore">${scoreStr}</span>${thruHtml}</div></td>`;
 }
 
-// Parse to-par robustly from any ESPN field path
+// Parse to-par robustly — tries every known ESPN field path
 function parseTopar(c) {
+  // Try statistics array first — ESPN puts live scoreToPar here
+  const stats = c.statistics || c.athlete?.statistics || [];
+  for (const s of stats) {
+    const val = s.displayValue ?? s.value;
+    if (val === null || val === undefined || val === '') continue;
+    const sv = String(val).trim();
+    if (sv === 'E' || sv === 'Even') return 0;
+    const n = parseInt(sv);
+    if (!isNaN(n) && n >= -30 && n <= 30) return n;
+  }
+  // score.value is sometimes the raw to-par integer
+  if (c.score?.value !== undefined && c.score.value !== null) {
+    const v = parseFloat(c.score.value);
+    if (!isNaN(v) && v >= -30 && v <= 30 && v !== 0) return Math.round(v);
+  }
+  // score.displayValue — but only if it's NOT "E" when player is active (ESPN uses E as placeholder)
+  // We still need it for truly even players, so we accept it but deprioritise
   const candidates = [
-    c.score?.displayValue,
     c.score?.toPar,
-    (c.statistics || []).find(s => s.name === 'scoreToPar' || s.abbreviation === 'TOT')?.displayValue,
-    c.total,
     c.toPar,
+    c.total,
   ];
   for (const v of candidates) {
     if (v === null || v === undefined || v === '') continue;
@@ -360,7 +375,32 @@ function parseTopar(c) {
     const n = parseInt(s);
     if (!isNaN(n) && n >= -30 && n <= 30) return n;
   }
+  // Last resort: displayValue (may be stale "E" mid-round)
+  const dv = c.score?.displayValue;
+  if (dv !== null && dv !== undefined && dv !== '') {
+    const s = String(dv).trim();
+    if (s === 'E' || s === 'Even') return 0;
+    const n = parseInt(s);
+    if (!isNaN(n) && n >= -30 && n <= 30) return n;
+  }
   return null;
+}
+
+// Log raw competitor data once for debugging (first call only)
+let _debugLogged = false;
+function debugLog(competitors) {
+  if (_debugLogged || !competitors.length) return;
+  _debugLogged = true;
+  const c = competitors[0];
+  console.log('[Masters Pool] Sample competitor fields:', {
+    name: c.athlete?.displayName,
+    score: c.score,
+    toPar: c.toPar,
+    total: c.total,
+    statistics: c.statistics,
+    status: c.status,
+    linescores: c.linescores,
+  });
 }
 
 async function load() {
@@ -383,6 +423,7 @@ async function load() {
       } catch(e) {}
     }
     if (competitors.length) {
+      debugLog(competitors);
       playerMap = {};
       const entries = [];
       competitors.forEach(c => {
@@ -644,9 +685,11 @@ function renderLeaderboard() {
     const inPool = allPoolNames.has(norm(p.name)) || [...allPoolNames].some(n => norm(p.name).includes(n.split(' ').pop()) && n.split(' ').pop().length > 3);
     const roundCols = (p.rounds || [null,null,null,null]).slice(0,4).map((rv, k) => {
       if (rv !== null && rv >= 60 && rv <= 90) return `<td>${fmt(rv - 72)}</td>`;
-      if (!p.cut && !p.finished && p.period === (k+1) && p.active) {
+      const isActiveRound = !p.cut && !p.finished && p.period === (k+1) && p.active;
+      if (isActiveRound && p.topar !== null && p.topar !== undefined) {
         const tv = (p.thru && p.thru !== '-' && p.thru !== 'F') ? p.thru : '';
-        return `<td><div class="rcell"><span>${fmt(p.topar)}</span>${tv ? `<span class="rthru live"><span class="live-dot"></span>${tv}</span>` : ''}</div></td>`;
+        const thruHtml = tv ? `<span class="rthru live"><span class="live-dot"></span>${tv}</span>` : `<span class="rthru live"><span class="live-dot"></span>Live</span>`;
+        return `<td><div class="rcell"><span class="rscore">${fmt(p.topar)}</span>${thruHtml}</div></td>`;
       }
       return `<td style="color:var(--text-tertiary)">-</td>`;
     });
