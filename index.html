@@ -302,6 +302,11 @@ function fmt(s) {
   return s < 0 ? '' + s : '+' + s;
 }
 
+// fmt with fallback label for truly unknown values
+function fmtOrDash(s) {
+  return (s === null || s === undefined || isNaN(s)) ? '-' : fmt(s);
+}
+
 function assignPositions(entries) {
   const sorted = [...entries].sort((a, b) => {
     if (a.cut && !b.cut) return 1;
@@ -339,6 +344,25 @@ function roundCell(completedStroke, activeTopar, thru, isActive, isFuture, isBes
   return `<td class="${bg}"><div class="rcell"><span class="rscore">${scoreStr}</span>${thruHtml}</div></td>`;
 }
 
+// Parse to-par robustly from any ESPN field path
+function parseTopar(c) {
+  const candidates = [
+    c.score?.displayValue,
+    c.score?.toPar,
+    (c.statistics || []).find(s => s.name === 'scoreToPar' || s.abbreviation === 'TOT')?.displayValue,
+    c.total,
+    c.toPar,
+  ];
+  for (const v of candidates) {
+    if (v === null || v === undefined || v === '') continue;
+    const s = String(v).trim();
+    if (s === 'E' || s === 'Even') return 0;
+    const n = parseInt(s);
+    if (!isNaN(n) && n >= -30 && n <= 30) return n;
+  }
+  return null;
+}
+
 async function load() {
   document.getElementById('lu').textContent = 'Fetching…';
   try {
@@ -364,18 +388,18 @@ async function load() {
       competitors.forEach(c => {
         const name = c.athlete?.displayName || c.athlete?.shortName || '';
         const key = norm(name);
+        // Round scores: only accept realistic 18-hole totals (60-90 strokes)
         const ls = c.linescores || [];
-        // Only treat a linescore value as a completed round if it looks like a
-        // realistic 18-hole stroke total (60–90). ESPN sometimes returns cumulative
-        // partial strokes mid-round which would produce nonsense to-par values.
         const rounds = ls.map(l => {
           const v = parseInt(l.value);
           return (!isNaN(v) && v >= 60 && v <= 90) ? v : null;
         });
         while (rounds.length < 4) rounds.push(null);
-        const tp = c.score?.toPar ?? c.toPar ?? 0;
-        const topar = typeof tp === 'string' ? (tp === 'E' ? 0 : parseInt(tp) || 0) : parseInt(tp) || 0;
-        const thru = c.status?.thru ?? c.status?.displayValue ?? '-';
+        // Use robust to-par parser
+        const topar = parseTopar(c);
+        // Thru: treat "0" as not started
+        const thruRaw = c.status?.thru ?? c.status?.displayValue ?? '-';
+        const thru = (thruRaw === '0' || thruRaw === 0) ? '-' : String(thruRaw);
         const typeDesc = (c.status?.type?.description || c.status?.type?.name || '').toLowerCase();
         const cut = typeDesc.includes('cut') || typeDesc.includes('wd') || typeDesc.includes('dq');
         const finished = typeDesc.includes('final') || thru === 'F' || thru === 'Final';
@@ -383,7 +407,7 @@ async function load() {
         const period = c.status?.period || 1;
         const apiPos = c.status?.position?.displayName || c.status?.position?.abbreviation || '';
         playerMap[key] = { name, topar, thru, rounds, cut, active, finished, period, apiPos };
-        entries.push({ key, topar, cut });
+        entries.push({ key, topar: topar ?? 99, cut });
       });
       const posMap = assignPositions(entries);
       Object.keys(playerMap).forEach(k => {
@@ -469,6 +493,7 @@ function computeAllTotals() {
       rows.sort((a, b) => { if (a.cut && !b.cut) return 1; if (!a.cut && b.cut) return -1; return (a.topar ?? 99) - (b.topar ?? 99); });
       return rows[0];
     });
+    // Only include tiers where we have actual data; null means not yet known
     const currentTotal = tierBests.reduce((s, b) => s + (b.topar ?? 0), 0);
     const roundTotals = [currentTotal, null, null, null];
     for (let ri = 1; ri < 4; ri++) {
