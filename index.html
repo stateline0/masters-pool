@@ -271,7 +271,7 @@ const FULLNAMES = {
   'Scott':'Adam Scott','Knapp':'Jake Knapp','Lowry':'Shane Lowry','Day':'Jason Day',
   'Spaun':'J.J. Spaun','Burns':'Sam Burns','N. Hojgaard':'Nicolai Hojgaard',
   'Straka':'Sepp Straka','McNealy':'Maverick McNealy','Hatton':'Tyrrell Hatton',
-  'Bridgeman':'Aldrich Potgieter','Conners':'Corey Conners','Kityama':'Rikuya Hoshino',
+  'Bridgeman':'Jacob Bridgeman','Conners':'Corey Conners','Kityama':'Kurt Kitayama',
   'English':'Harris English','Griffin':'Lanto Griffin','Smith':'Cameron Smith',
 };
 // ── END CONFIG ──────────────────────────────────────────────────────────────
@@ -280,17 +280,30 @@ let playerMap = {};
 
 function norm(s) {
   return (s||'').toLowerCase()
-    .replace(/[åä]/g,'a').replace(/[öü]/g,'u').replace(/[éè]/g,'e')
+    .replace(/[åäæ]/g,'a').replace(/[øöü]/g,'u').replace(/[éè]/g,'e')
     .replace(/[^a-z ]/g,'').trim();
 }
 
 function lookup(sn) {
   const full = FULLNAMES[sn] || sn;
   const nf = norm(full);
+  // Exact full name match
   if (playerMap[nf]) return playerMap[nf];
+  // Last name match
   const last = nf.split(' ').pop();
   if (last.length > 3) {
     const k = Object.keys(playerMap).find(k => k.endsWith(' ' + last) || k === last);
+    if (k) return playerMap[k];
+  }
+  // First name initial match e.g. "n hojgaard" -> "nicolai hojgaard"
+  const parts = nf.split(' ');
+  if (parts.length >= 2 && parts[0].length === 1) {
+    const initial = parts[0];
+    const lastName = parts.slice(1).join(' ');
+    const k = Object.keys(playerMap).find(k => {
+      const kp = k.split(' ');
+      return kp.length >= 2 && kp[0].startsWith(initial) && kp.slice(1).join(' ') === lastName;
+    });
     if (k) return playerMap[k];
   }
   return null;
