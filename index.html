@@ -365,7 +365,13 @@ async function load() {
         const name = c.athlete?.displayName || c.athlete?.shortName || '';
         const key = norm(name);
         const ls = c.linescores || [];
-        const rounds = ls.map(l => { const v = l.value; return (v === '-' || v == null || v === '') ? null : parseInt(v) || null; });
+        // Only treat a linescore value as a completed round if it looks like a
+        // realistic 18-hole stroke total (60–90). ESPN sometimes returns cumulative
+        // partial strokes mid-round which would produce nonsense to-par values.
+        const rounds = ls.map(l => {
+          const v = parseInt(l.value);
+          return (!isNaN(v) && v >= 60 && v <= 90) ? v : null;
+        });
         while (rounds.length < 4) rounds.push(null);
         const tp = c.score?.toPar ?? c.toPar ?? 0;
         const topar = typeof tp === 'string' ? (tp === 'E' ? 0 : parseInt(tp) || 0) : parseInt(tp) || 0;
@@ -470,8 +476,9 @@ function computeAllTotals() {
       tierBests.forEach(best => {
         let cum = 0;
         for (let k = 0; k <= ri; k++) {
-          if (best.rounds[k] === null) { complete = false; }
-          else cum += best.rounds[k] - 72;
+          const rv = best.rounds[k];
+          if (rv === null || rv < 60 || rv > 90) { complete = false; break; }
+          cum += rv - 72;
         }
         if (complete) sum += cum;
       });
@@ -567,7 +574,8 @@ function renderScorecard() {
       rows.forEach((r, ri) => {
         const bg = r.isBest ? ' best-score' : '';
         const roundCols = r.rounds.map((rv, k) => {
-          const isCompleted = rv !== null;
+          // A round is only "completed" if we have a realistic 18-hole stroke total
+          const isCompleted = rv !== null && rv >= 60 && rv <= 90;
           const isCurrentRound = !r.cut && !r.finished && r.period === (k + 1) && r.active;
           const isFuture = !isCompleted && !isCurrentRound;
           return roundCell(isCompleted ? rv : null, isCurrentRound ? r.topar : null, r.thru, isCurrentRound, isFuture, r.isBest);
@@ -610,7 +618,7 @@ function renderLeaderboard() {
   sorted.slice(0, 70).forEach(p => {
     const inPool = allPoolNames.has(norm(p.name)) || [...allPoolNames].some(n => norm(p.name).includes(n.split(' ').pop()) && n.split(' ').pop().length > 3);
     const roundCols = (p.rounds || [null,null,null,null]).slice(0,4).map((rv, k) => {
-      if (rv !== null) return `<td>${fmt(rv - 72)}</td>`;
+      if (rv !== null && rv >= 60 && rv <= 90) return `<td>${fmt(rv - 72)}</td>`;
       if (!p.cut && !p.finished && p.period === (k+1) && p.active) {
         const tv = (p.thru && p.thru !== '-' && p.thru !== 'F') ? p.thru : '';
         return `<td><div class="rcell"><span>${fmt(p.topar)}</span>${tv ? `<span class="rthru live"><span class="live-dot"></span>${tv}</span>` : ''}</div></td>`;
