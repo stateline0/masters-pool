@@ -260,19 +260,54 @@ const PICKS = {
 };
 
 const FULLNAMES = {
-  'Scheffler':'Scottie Scheffler','Rahm':'Jon Rahm','DeChambeau':'Bryson DeChambeau',
-  'McIlroy':'Rory McIlroy','Åberg':'Ludvig Åberg','Schauffele':'Xander Schauffele',
-  'Fleetwood':'Tommy Fleetwood','Young':'Cameron Young','Fitzpatrick':'Matthew Fitzpatrick',
-  'Matsuyama':'Hideki Matsuyama','Morikawa':'Collin Morikawa','Min Woo Lee':'Min Woo Lee',
-  'Rose':'Justin Rose','MacIntyre':'Robert MacIntyre','Koepka':'Brooks Koepka',
-  'Spieth':'Jordan Spieth','Reed':'Patrick Reed','Gotterup':'Chris Gotterup',
-  'Hovland':'Viktor Hovland','Henley':'Russell Henley','Si Woo Kim':'Si Woo Kim',
-  'Thomas':'Justin Thomas','Bhatia':'Akshay Bhatia','Cantlay':'Patrick Cantlay',
-  'Scott':'Adam Scott','Knapp':'Jake Knapp','Lowry':'Shane Lowry','Day':'Jason Day',
-  'Spaun':'J.J. Spaun','Burns':'Sam Burns','N. Hojgaard':'Nicolai Hojgaard',
-  'Straka':'Sepp Straka','McNealy':'Maverick McNealy','Hatton':'Tyrrell Hatton',
-  'Bridgeman':'Jacob Bridgeman','Conners':'Corey Conners','Kityama':'Kurt Kitayama',
-  'English':'Harris English','Griffin':'Lanto Griffin','Smith':'Cameron Smith',
+  // Tier 1 — verified ESPN display names
+  'Scheffler':   'Scottie Scheffler',
+  'Rahm':        'Jon Rahm',
+  'DeChambeau':  'Bryson DeChambeau',
+  'McIlroy':     'Rory McIlroy',
+  'Åberg':       'Ludvig Åberg',
+  // Tier 2
+  'Schauffele':  'Xander Schauffele',
+  'Fleetwood':   'Tommy Fleetwood',
+  'Young':       'Cameron Young',
+  'Fitzpatrick': 'Matt Fitzpatrick',   // ESPN uses "Matt" not "Matthew"
+  'Matsuyama':   'Hideki Matsuyama',
+  // Tier 3
+  'Morikawa':    'Collin Morikawa',
+  'Min Woo Lee': 'Min Woo Lee',
+  'Rose':        'Justin Rose',
+  'MacIntyre':   'Robert MacIntyre',
+  'Koepka':      'Brooks Koepka',
+  // Tier 4
+  'Spieth':      'Jordan Spieth',
+  'Reed':        'Patrick Reed',
+  'Gotterup':    'Chris Gotterup',
+  'Hovland':     'Viktor Hovland',
+  'Henley':      'Russell Henley',
+  // Tier 5
+  'Si Woo Kim':  'Si Woo Kim',
+  'Thomas':      'Justin Thomas',
+  'Bhatia':      'Akshay Bhatia',
+  'Cantlay':     'Patrick Cantlay',
+  'Scott':       'Adam Scott',
+  // Tier 6
+  'Knapp':       'Jake Knapp',
+  'Lowry':       'Shane Lowry',
+  'Day':         'Jason Day',
+  'Spaun':       'J.J. Spaun',
+  'Burns':       'Sam Burns',
+  // Tier 7
+  'N. Hojgaard': 'Nicolai Hojgaard',  // norm() strips ø -> o, so this matches ESPN's "Nicolai Højgaard"
+  'Straka':      'Sepp Straka',
+  'McNealy':     'Maverick McNealy',
+  'Hatton':      'Tyrrell Hatton',
+  'Bridgeman':   'Jacob Bridgeman',
+  // Tier 8
+  'Conners':     'Corey Conners',
+  'Kityama':     'Kurt Kitayama',
+  'English':     'Harris English',
+  'Griffin':     'Lanto Griffin',
+  'Smith':       'Cameron Smith',
 };
 // ── END CONFIG ──────────────────────────────────────────────────────────────
 
@@ -280,7 +315,7 @@ let playerMap = {};
 
 function norm(s) {
   return (s||'').toLowerCase()
-    .replace(/[åäæ]/g,'a').replace(/[øöü]/g,'u').replace(/[éè]/g,'e')
+    .replace(/[åäæ]/g,'a').replace(/[øö]/g,'o').replace(/[ü]/g,'u').replace(/[éè]/g,'e')
     .replace(/[^a-z ]/g,'').trim();
 }
 
