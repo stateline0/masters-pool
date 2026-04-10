@@ -420,7 +420,7 @@ function assignPositions(entries) {
   return posMap;
 }
 
-function roundCell(completedStroke, activeTopar, thru, isActive, isFuture, isBest) {
+function roundCell(completedStroke, activeTopar, thru, isActive, isFuture, isBest, teeTime) {
   const bg = isBest ? ' best-score' : '';
   if (isFuture) return `<td class="${bg}" style="color:var(--text-tertiary);">-</td>`;
   let scoreStr = '', thruHtml = '';
@@ -430,13 +430,27 @@ function roundCell(completedStroke, activeTopar, thru, isActive, isFuture, isBes
   } else if (isActive) {
     scoreStr = fmt(activeTopar);
     const tv = (thru && thru !== '-' && thru !== 'F') ? thru : '';
-    thruHtml = tv
-      ? `<span class="rthru live"><span class="live-dot"></span>${tv}</span>`
-      : `<span class="rthru live"><span class="live-dot"></span>Live</span>`;
+    if (tv) {
+      thruHtml = `<span class="rthru live"><span class="live-dot"></span>${tv}</span>`;
+    } else if (teeTime) {
+      thruHtml = `<span class="rthru">${teeTime}</span>`;
+    } else {
+      thruHtml = `<span class="rthru live"><span class="live-dot"></span>Live</span>`;
+    }
   } else {
     return `<td class="${bg}" style="color:var(--text-tertiary);">-</td>`;
   }
   return `<td class="${bg}"><div class="rcell"><span class="rscore">${scoreStr}</span>${thruHtml}</div></td>`;
+}
+
+// Format a tee time string (ISO or ESPN format) to a short local time like "1:42 PM"
+function formatTeeTime(raw) {
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw;
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })
+            .replace(':00 ', ' ') + ' CDT';
+  } catch(e) { return ''; }
 }
 
 // Parse to-par robustly — tries every known ESPN field path
@@ -543,7 +557,10 @@ async function load() {
         const active = !finished && !cut;
         const period = c.status?.period || 1;
         const apiPos = c.status?.position?.displayName || c.status?.position?.abbreviation || '';
-        playerMap[key] = { name, topar, thru, rounds, cut, active, finished, period, apiPos };
+        // Tee time for players who haven't started yet
+        const teeTimeRaw = c.status?.teeTime || c.teeTime || c.startTime || '';
+        const teeTime = teeTimeRaw ? formatTeeTime(teeTimeRaw) : '';
+        playerMap[key] = { name, topar, thru, rounds, cut, active, finished, period, apiPos, teeTime };
         entries.push({ key, topar: topar ?? 99, cut });
       });
       const posMap = assignPositions(entries);
@@ -741,7 +758,7 @@ function renderScorecard() {
           const isFuture = !isCompleted && !isCurrentRound;
           // For active round, pass incremental topar (just this round), not cumulative
           const activeScore = isCurrentRound ? activeRoundTopar(r) : null;
-          return roundCell(isCompleted ? rv : null, activeScore, r.thru, isCurrentRound, isFuture, r.isBest);
+          return roundCell(isCompleted ? rv : null, activeScore, r.thru, isCurrentRound, isFuture, r.isBest, r.teeTime);
         });
         html += `<tr class="${r.cut ? 'cut-row' : ''}${ri === 0 ? ' tier-start' : ''}">
           <td class="left"><span class="pn">${r.sn}</span><span class="tier-badge">${r.tier}</span></td>
@@ -794,9 +811,11 @@ function renderLeaderboard() {
       const isActiveRound = !p.cut && !p.finished && p.period === (k+1) && p.active;
       if (isActiveRound && p.topar !== null && p.topar !== undefined) {
         const tv = (p.thru && p.thru !== '-' && p.thru !== 'F') ? p.thru : '';
-        const thruHtml = tv ? `<span class="rthru live"><span class="live-dot"></span>${tv}</span>` : `<span class="rthru live"><span class="live-dot"></span>Live</span>`;
+        const lbThruHtml = tv
+          ? `<span class="rthru live"><span class="live-dot"></span>${tv}</span>`
+          : (p.teeTime ? `<span class="rthru">${p.teeTime}</span>` : `<span class="rthru live"><span class="live-dot"></span>Live</span>`);
         const incremental = activeRoundTopar(p);
-        return `<td><div class="rcell"><span class="rscore">${fmt(incremental)}</span>${thruHtml}</div></td>`;
+        return `<td><div class="rcell"><span class="rscore">${fmt(incremental)}</span>${lbThruHtml}</div></td>`;
       }
       return `<td style="color:var(--text-tertiary)">-</td>`;
     });
