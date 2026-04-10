@@ -425,16 +425,21 @@ function roundCell(completedStroke, activeTopar, thru, isActive, isFuture, isBes
   if (isFuture) return `<td class="${bg}" style="color:var(--text-tertiary);">-</td>`;
   let scoreStr = '', thruHtml = '';
   if (completedStroke !== null && completedStroke !== undefined) {
-    scoreStr = fmt(completedStroke - 72);
-    thruHtml = `<span class="rthru">F·${completedStroke}</span>`;
+    scoreStr = String(completedStroke);
+    thruHtml = '';
   } else if (isActive) {
-    scoreStr = fmt(activeTopar);
     const tv = (thru && thru !== '-' && thru !== 'F') ? thru : '';
     if (tv) {
+      // On the course — show live score
+      scoreStr = fmt(activeTopar);
       thruHtml = `<span class="rthru live"><span class="live-dot"></span>${tv}</span>`;
     } else if (teeTime) {
+      // Not yet teed off — show tee time, no score
+      scoreStr = '';
       thruHtml = `<span class="rthru">${teeTime}</span>`;
     } else {
+      // Active but no info
+      scoreStr = fmt(activeTopar);
       thruHtml = `<span class="rthru live"><span class="live-dot"></span>Live</span>`;
     }
   } else {
@@ -807,15 +812,23 @@ function renderLeaderboard() {
   sorted.slice(0, 70).forEach(p => {
     const inPool = allPoolNames.has(norm(p.name)) || [...allPoolNames].some(n => norm(p.name).includes(n.split(' ').pop()) && n.split(' ').pop().length > 3);
     const roundCols = (p.rounds || [null,null,null,null]).slice(0,4).map((rv, k) => {
-      if (rv !== null && rv >= 65 && rv <= 85) return `<td>${fmt(rv - 72)}</td>`;
+      if (rv !== null && rv >= 65 && rv <= 85) return `<td>${rv}</td>`;
       const isActiveRound = !p.cut && !p.finished && p.period === (k+1) && p.active;
       if (isActiveRound && p.topar !== null && p.topar !== undefined) {
         const tv = (p.thru && p.thru !== '-' && p.thru !== 'F') ? p.thru : '';
-        const lbThruHtml = tv
-          ? `<span class="rthru live"><span class="live-dot"></span>${tv}</span>`
-          : (p.teeTime ? `<span class="rthru">${p.teeTime}</span>` : `<span class="rthru live"><span class="live-dot"></span>Live</span>`);
         const incremental = activeRoundTopar(p);
-        return `<td><div class="rcell"><span class="rscore">${fmt(incremental)}</span>${lbThruHtml}</div></td>`;
+        let lbScoreHtml, lbThruHtml;
+        if (tv) {
+          lbScoreHtml = `<span class="rscore">${fmt(incremental)}</span>`;
+          lbThruHtml = `<span class="rthru live"><span class="live-dot"></span>${tv}</span>`;
+        } else if (p.teeTime) {
+          lbScoreHtml = '';
+          lbThruHtml = `<span class="rthru">${p.teeTime}</span>`;
+        } else {
+          lbScoreHtml = `<span class="rscore">${fmt(incremental)}</span>`;
+          lbThruHtml = `<span class="rthru live"><span class="live-dot"></span>Live</span>`;
+        }
+        return `<td><div class="rcell">${lbScoreHtml}${lbThruHtml}</div></td>`;
       }
       return `<td style="color:var(--text-tertiary)">-</td>`;
     });
