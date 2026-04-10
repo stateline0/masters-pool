@@ -216,6 +216,7 @@
   <div class="topbar-right">
     <span class="live-badge" id="live-badge">Live</span>
     <button class="refresh-btn" onclick="load()">↻ Refresh</button>
+    <button class="refresh-btn" onclick="debugAllPool()" style="opacity:0.5;font-size:11px">⚙ Debug</button>
     <span class="last-updated" id="lu"></span>
   </div>
 </div>
@@ -548,7 +549,7 @@ async function load() {
         const rounds = ls.map(l => {
           const v = parseInt(l.value);
           // Only accept realistic 18-hole Augusta scores (65-85); excludes par-3 contest scores
-          return (!isNaN(v) && v >= 65 && v <= 85) ? v : null;
+          return (!isNaN(v) && v >= 62 && v <= 88) ? v : null;
         });
         while (rounds.length < 4) rounds.push(null);
         // Use robust to-par parser
@@ -558,7 +559,7 @@ async function load() {
         const thru = (thruRaw === '0' || thruRaw === 0) ? '-' : String(thruRaw);
         const typeDesc = (c.status?.type?.description || c.status?.type?.name || '').toLowerCase();
         const cut = typeDesc.includes('cut') || typeDesc.includes('wd') || typeDesc.includes('dq');
-        const finished = typeDesc.includes('final') || thru === 'F' || thru === 'Final';
+        const finished = typeDesc.includes('final') || thru === 'F' || thru === 'Final' || thru === '18' || parseInt(thru) === 18;
         const active = !finished && !cut;
         const period = c.status?.period || 1;
         const apiPos = c.status?.position?.displayName || c.status?.position?.abbreviation || '';
@@ -666,7 +667,7 @@ function computeAllTotals() {
 
       for (const best of tierBests) {
         const rv = best.rounds[ri];
-        if (rv !== null && rv >= 65 && rv <= 85) {
+        if (rv !== null && rv >= 62 && rv <= 88) {
           // Completed stroke score for this round — use it directly
           sum += rv - 72;
           anyStarted = true;
@@ -723,7 +724,7 @@ function getTodayScore(player, todayRound) {
   const k = todayRound - 1;
   const rv = player.rounds[k];
   // Completed today's round
-  if (rv !== null && rv >= 65 && rv <= 85) return rv - 72;
+  if (rv !== null && rv >= 62 && rv <= 88) return rv - 72;
   // Active in today's round
   if (!player.cut && player.active && player.period === todayRound) {
     return activeRoundTopar(player);
@@ -831,7 +832,7 @@ function renderScorecard() {
         const bg = r.isBest ? ' best-score' : '';
         const roundCols = r.rounds.map((rv, k) => {
           // A round is only "completed" if we have a realistic 18-hole stroke total
-          const isCompleted = rv !== null && rv >= 65 && rv <= 85;
+          const isCompleted = rv !== null && rv >= 62 && rv <= 88;
           const isCurrentRound = !r.cut && !r.finished && r.period === (k + 1) && r.active;
           const isFuture = !isCompleted && !isCurrentRound;
           // For active round, pass incremental topar (just this round), not cumulative
@@ -885,7 +886,7 @@ function renderLeaderboard() {
   sorted.slice(0, 70).forEach(p => {
     const inPool = allPoolNames.has(norm(p.name)) || [...allPoolNames].some(n => norm(p.name).includes(n.split(' ').pop()) && n.split(' ').pop().length > 3);
     const roundCols = (p.rounds || [null,null,null,null]).slice(0,4).map((rv, k) => {
-      if (rv !== null && rv >= 65 && rv <= 85) return `<td><div class="rcell"><span class="rscore">${fmt(rv - 72)}</span><span class="rthru">${rv}</span></div></td>`;
+      if (rv !== null && rv >= 62 && rv <= 88) return `<td><div class="rcell"><span class="rscore">${fmt(rv - 72)}</span><span class="rthru">${rv}</span></div></td>`;
       const isActiveRound = !p.cut && !p.finished && p.period === (k+1) && p.active;
       if (isActiveRound && p.topar !== null && p.topar !== undefined) {
         const tv = (p.thru && p.thru !== '-' && p.thru !== 'F') ? p.thru : '';
@@ -916,6 +917,78 @@ function renderLeaderboard() {
   html += '</tbody></table></div>';
   document.getElementById('tab-leaderboard').innerHTML = html;
 }
+
+// Debug: show raw ESPN API fields for a named player
+function debugPlayer(searchName) {
+  const key = norm(searchName);
+  const p = playerMap[key] || Object.values(playerMap).find(p => norm(p.name).includes(key) || key.includes(norm(p.name).split(' ').pop()));
+  if (!p) { alert('Player not found: ' + searchName); return; }
+  const info = [
+    'Name: ' + p.name,
+    'topar: ' + p.topar,
+    'period: ' + p.period,
+    'thru: ' + p.thru,
+    'active: ' + p.active,
+    'finished: ' + p.finished,
+    'cut: ' + p.cut,
+    'rounds[]: [' + p.rounds.join(', ') + ']',
+    '--- computed ---',
+    'activeRoundTopar: ' + activeRoundTopar(p),
+    'computeTotal: ' + computeTotal(p),
+    'roundTopar(rounds[0]): ' + roundTopar(p.rounds[0]),
+    'roundTopar(rounds[1]): ' + roundTopar(p.rounds[1]),
+  ].join('\n');
+  alert(info);
+}
+
+// Show debug for all pool players — outputs to console
+function debugAllPool() {
+  const poolPlayers = TIERS.flatMap(t => t.players);
+  const rows = [['Name','topar','period','thru','active','fin','R0','R1','activeR','total']];
+  poolPlayers.forEach(sn => {
+    const full = FULLNAMES[sn] || sn;
+    const p = playerMap[norm(full)] || Object.values(playerMap).find(p => norm(p.name) === norm(full));
+    if (!p) { rows.push([sn,'NOT FOUND','','','','','','','','']); return; }
+    rows.push([sn, p.topar, p.period, p.thru, p.active?'Y':'N', p.finished?'Y':'N',
+      p.rounds[0], p.rounds[1], activeRoundTopar(p), computeTotal(p)]);
+  });
+  console.table(rows);
+  const existing = document.getElementById('debug-panel');
+  if (existing) { existing.remove(); return; }
+  const panel = document.createElement('div');
+  panel.id = 'debug-panel';
+  Object.assign(panel.style, {position:'fixed',top:'60px',right:'10px',background:'#111',
+    border:'1px solid #555',borderRadius:'8px',padding:'12px',fontSize:'10px',
+    fontFamily:'monospace',zIndex:'9999',maxHeight:'80vh',overflowY:'auto',
+    maxWidth:'780px',boxShadow:'0 4px 20px rgba(0,0,0,.5)',color:'#eee'});
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px';
+  const title = document.createElement('strong');
+  title.textContent = 'ESPN Raw Data — ' + new Date().toLocaleTimeString();
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'Close';
+  closeBtn.style.cssText = 'background:#333;border:1px solid #555;color:#eee;padding:2px 8px;cursor:pointer;border-radius:4px';
+  closeBtn.onclick = function() { panel.remove(); };
+  hdr.appendChild(title); hdr.appendChild(closeBtn);
+  panel.appendChild(hdr);
+  const tbl = document.createElement('table');
+  tbl.style.borderCollapse = 'collapse';
+  rows.forEach(function(r, i) {
+    const tr = document.createElement('tr');
+    if (i === 0) tr.style.cssText = 'font-weight:bold;border-bottom:1px solid #555;color:#adf';
+    else tr.style.background = i % 2 ? '#1a1a1a' : '#222';
+    r.forEach(function(c) {
+      const td = document.createElement('td');
+      td.style.cssText = 'padding:3px 8px;border-right:1px solid #333;white-space:nowrap';
+      td.textContent = String(c === null || c === undefined ? '-' : c);
+      tr.appendChild(td);
+    });
+    tbl.appendChild(tr);
+  });
+  panel.appendChild(tbl);
+  document.body.appendChild(panel);
+}
+
 
 function sw(id, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
