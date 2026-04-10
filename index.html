@@ -654,46 +654,37 @@ function computeAllTotals() {
     });
     // Only include tiers where we have actual data; null means not yet known
     const currentTotal = tierBests.reduce((s, b) => s + (computeTotal(b) ?? 0), 0);
-    // Build roundTotals[ri] = sum of best players' cumulative score through round ri
-    // Uses stroke scores for completed rounds, live incremental topar for active round.
-    // Shows a live running number during active rounds (not null until all complete).
+    // roundTotals[ri] = pool sum of JUST round ri scores (not cumulative).
+    // R1 = sum of best players' R1 to-par.
+    // R2 = sum of best players' R2 to-par (incremental, not including R1).
+    // R3/R4 = null until that round actually starts for at least one player.
     const roundTotals = [null, null, null, null];
     for (let ri = 0; ri < 4; ri++) {
       let sum = 0;
-      let hasAnyScore = false;
-      let allHaveStarted = true;
-      tierBests.forEach(best => {
-        // Sum rounds 0..ri for this best player
-        let playerSum = 0;
-        let playerStarted = false;
-        for (let k = 0; k <= ri; k++) {
-          const rv = best.rounds[k];
-          if (rv !== null && rv >= 65 && rv <= 85) {
-            // Completed round stroke score
-            playerSum += rv - 72;
-            playerStarted = true;
-          } else if (!best.cut && best.active && best.period === (k + 1) && best.topar !== null) {
-            // Active in this round — use incremental topar for this round
-            playerSum += activeRoundTopar(best);
-            playerStarted = true;
-            break; // can't go further
-          } else if (k < ri) {
-            // Haven't started a previous round — skip this player entirely
-            playerStarted = false;
-            break;
-          }
-          // k === ri and no data yet: player hasn't started this round
-        }
-        if (playerStarted) {
-          sum += playerSum;
-          hasAnyScore = true;
+      let anyStarted = false;
+      let allFinished = true;
+
+      for (const best of tierBests) {
+        const rv = best.rounds[ri];
+        if (rv !== null && rv >= 65 && rv <= 85) {
+          // Completed stroke score for this round — use it directly
+          sum += rv - 72;
+          anyStarted = true;
+        } else if (!best.cut && best.active && best.period === (ri + 1) && best.topar !== null) {
+          // Player is currently active in this round — use incremental topar
+          sum += activeRoundTopar(best);
+          anyStarted = true;
+          allFinished = false;
         } else {
-          allHaveStarted = false;
+          // Not started or future round — don't count, mark incomplete
+          allFinished = false;
+          // Only skip the whole round column if NO player has even started it
+          // (anyStarted handles that below)
         }
-      });
-      // Show the running total as long as at least some players have started this round
-      // For past rounds (all completed), show only if all have completed
-      roundTotals[ri] = hasAnyScore ? sum : null;
+      }
+
+      // Only show a value if at least one best player has started this round
+      roundTotals[ri] = anyStarted ? sum : null;
     }
     return { name: pName, currentTotal, roundTotals, tierBests };
   });
