@@ -647,7 +647,7 @@ function computeAllTotals() {
         const d = lookup(sn) || { name: sn, topar: null, thru: '-', rounds: [null,null,null,null], cut: false, active: false, finished: false, period: 1, pos: '-' };
         const rounds = (d.rounds || []).slice(0, 4);
         while (rounds.length < 4) rounds.push(null);
-        return { ...d, rounds };
+        return { sn, ...d, rounds };  // sn = short display name, must come first so it's not overwritten
       });
       rows.sort((a, b) => { if (a.cut && !b.cut) return 1; if (!a.cut && b.cut) return -1; return (computeTotal(a) ?? 99) - (computeTotal(b) ?? 99); });
       return rows[0];
@@ -779,9 +779,8 @@ function renderStandings() {
       <div class="pc-sub">pool total</div>
       <div class="pc-rows">`;
     p.tierBests.forEach((best, ti) => {
-      const sn = best?.sn || TIERS[ti].players[PICKS[p.name][ti][0]];
       html += `<div class="pc-row">
-        <span class="gl">${TIERS[ti].name}: ${sn || '-'}</span>
+        <span class="gl">${TIERS[ti].name}: ${best?.sn || '-'}</span>
         <span class="gr">${fmt(computeTotal(best))}</span>
       </div>`;
     });
