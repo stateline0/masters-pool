@@ -365,13 +365,12 @@ function roundTopar(strokeScore) {
 }
 
 // Get incremental to-par for the current active round only
-// ESPN topar is cumulative, so subtract completed rounds to get just this round
 function activeRoundTopar(r) {
-  if (r.topar === null) return null;
+  if (!r || r.topar === null || r.topar === undefined) return null;
   let completedSum = 0;
   for (let k = 0; k < 4; k++) {
-    if (r.period === (k + 1)) break; // stop at current round
-    const rtp = roundTopar(r.rounds[k]);
+    if (r.period === (k + 1)) break;
+    const rtp = roundTopar((r.rounds || [])[k]);
     if (rtp !== null) completedSum += rtp;
   }
   return r.topar - completedSum;
@@ -379,22 +378,22 @@ function activeRoundTopar(r) {
 
 // True total: sum of all completed round to-pars + active round's incremental to-par
 function computeTotal(r) {
-  const par = 72;
+  if (!r) return null;
+  const rounds = r.rounds || [null, null, null, null];
   let sum = 0;
   let hasAny = false;
   for (let k = 0; k < 4; k++) {
-    const rtp = roundTopar(r.rounds[k]);
+    const rtp = roundTopar(rounds[k]);
     if (rtp !== null) {
       sum += rtp;
       hasAny = true;
-    } else if (!r.cut && r.active && r.period === (k + 1) && r.topar !== null) {
-      // Active round: add incremental topar for this round only
+    } else if (!r.cut && r.active && r.period === (k + 1) && r.topar !== null && r.topar !== undefined) {
       sum += activeRoundTopar(r);
       hasAny = true;
       break;
     }
   }
-  if (!hasAny) return r.topar; // fallback
+  if (!hasAny) return r.topar !== undefined ? r.topar : null;
   return sum;
 }
 
@@ -584,7 +583,7 @@ function loadDemo() {
     ['Jason Day',-1,'11',true,1,[null,null,null,null]],
     ['Tyrrell Hatton',-1,'10',true,1,[null,null,null,null]],
     ['Akshay Bhatia',-1,'8',true,1,[null,null,null,null]],
-    ['Matthew Fitzpatrick',0,'9',true,1,[null,null,null,null]],
+    ['Matt Fitzpatrick',0,'9',true,1,[null,null,null,null]],
     ['Chris Gotterup',0,'6',true,1,[null,null,null,null]],
     ['Shane Lowry',0,'10',true,1,[null,null,null,null]],
     ['Nicolai Hojgaard',0,'9',true,1,[null,null,null,null]],
@@ -623,7 +622,7 @@ function computeAllTotals() {
     const tierBests = TIERS.map((tier, ti) => {
       const rows = PICKS[pName][ti].map(idx => {
         const sn = tier.players[idx];
-        const d = lookup(sn) || { topar: null, thru: '-', rounds: [null,null,null,null], cut: false, active: false, finished: false, period: 1 };
+        const d = lookup(sn) || { name: sn, topar: null, thru: '-', rounds: [null,null,null,null], cut: false, active: false, finished: false, period: 1, pos: '-' };
         const rounds = (d.rounds || []).slice(0, 4);
         while (rounds.length < 4) rounds.push(null);
         return { ...d, rounds };
