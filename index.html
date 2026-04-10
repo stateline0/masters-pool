@@ -766,7 +766,7 @@ function renderStandings() {
     const color = COLORS[p.name];
     // Use tierBests from computeAllTotals — same data as scorecard Total column
     const todayScore = getPoolTodayScore(p.tierBests, todayRound);
-    const todayLabel = todayRound ? `R${todayRound} today` : 'today';
+    const todayLabel = 'today';
     html += `<div class="pc${rank === 0 ? ' lead' : ''}" style="${rank === 0 ? 'border-color:' + color : ''}">
       <div class="pc-top">
         <span class="pc-name" style="color:${color}">${p.name}</span>
