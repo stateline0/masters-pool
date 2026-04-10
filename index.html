@@ -377,11 +377,10 @@ function isCompletedRound(r, k) {
   // is fully finished, OR has played all 18 holes of this round (thru = 18 or F)
   // and is currently in this round (period == k+1).
   if (r.finished || r.period > (k + 1)) return true;
-  // Handle ESPN lag: player just finished round k but status not yet updated
-  if (r.period === (k + 1)) {
-    const thruVal = parseInt(r.thru);
-    if (thruVal === 18 || r.thru === 'F' || r.thru === 'Final') return true;
-  }
+  // Note: we intentionally do NOT use thru=18 as a trigger here.
+  // During the brief window between a player finishing hole 18 and ESPN marking finished=true,
+  // the linescores slot may still contain a par-3 contest score (63-65).
+  // Falling back to activeRoundTopar (ESPN's cumulative topar) is accurate in that window.
   return false;
 }
 
@@ -965,7 +964,7 @@ function debugPlayer(searchName) {
 // Show debug for all pool players — outputs to console
 function debugAllPool() {
   const poolPlayers = TIERS.flatMap(t => t.players);
-  const rows = [['Name','topar','period','thru','active','fin','R0','R1','activeR','total']];
+  const rows = [['Name','topar','period','thru','active','fin','R1','R2','activeR','total']];
   poolPlayers.forEach(sn => {
     const full = FULLNAMES[sn] || sn;
     const p = playerMap[norm(full)] || Object.values(playerMap).find(p => norm(p.name) === norm(full));
