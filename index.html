@@ -895,7 +895,7 @@ function renderLeaderboard() {
   sorted.slice(0, 70).forEach(p => {
     const inPool = allPoolNames.has(norm(p.name)) || [...allPoolNames].some(n => norm(p.name).includes(n.split(' ').pop()) && n.split(' ').pop().length > 3);
     const roundCols = (p.rounds || [null,null,null,null]).slice(0,4).map((rv, k) => {
-      if (rv !== null && rv !== undefined) return `<td><div class="rcell"><span class="rscore">${fmt(rv - 72)}</span><span class="rthru">${rv}</span></div></td>`;
+      if (isCompletedRound(p, k)) return `<td><div class="rcell"><span class="rscore">${fmt(rv - 72)}</span><span class="rthru">${rv}</span></div></td>`;
       const isActiveRound = !p.cut && !p.finished && p.period === (k+1) && p.active;
       if (isActiveRound && p.topar !== null && p.topar !== undefined) {
         const tv = (p.thru && p.thru !== '-' && p.thru !== 'F') ? p.thru : '';
