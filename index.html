@@ -732,14 +732,13 @@ function getTodayRound() {
 function getTodayScore(player, todayRound) {
   if (!player || !todayRound) return null;
   const k = todayRound - 1;
-  const rv = player.rounds[k];
-  // Completed today's round
-  if (rv !== null && rv !== undefined) return rv - 72;
-  // Active in today's round
+  // Completed today's round — use stroke score only if round is truly finished
+  if (isCompletedRound(player, k)) return roundTopar(player.rounds[k]);
+  // Active in today's round — use incremental topar
   if (!player.cut && player.active && player.period === todayRound) {
     return activeRoundTopar(player);
   }
-  // Not yet started today's round — return null (don't count as 0)
+  // Not yet started today's round
   return null;
 }
 
