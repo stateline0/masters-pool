@@ -240,23 +240,31 @@ const COLORS = {
 const NAMES = ['Conner', 'Nick', 'Zach', 'Jaden', 'Dad'];
 
 const TIERS = [
-  { name: 'T1', players: ['Scheffler','Rahm','DeChambeau','McIlroy','Åberg'] },
-  { name: 'T2', players: ['Schauffele','Fleetwood','Young','Fitzpatrick','Matsuyama'] },
-  { name: 'T3', players: ['Morikawa','Min Woo Lee','Rose','MacIntyre','Koepka'] },
-  { name: 'T4', players: ['Spieth','Reed','Gotterup','Hovland','Henley'] },
-  { name: 'T5', players: ['Si Woo Kim','Thomas','Bhatia','Cantlay','Scott'] },
-  { name: 'T6', players: ['Knapp','Lowry','Day','Spaun','Burns'] },
-  { name: 'T7', players: ['N. Hojgaard','Straka','McNealy','Hatton','Bridgeman'] },
-  { name: 'T8', players: ['Conners','Kityama','English','Griffin','Smith'] },
+  { name: 'Group 1', players: ['Scheffler','Rahm','DeChambeau','McIlroy','Åberg'] },
+  { name: 'Group 2', players: ['Schauffele','Fleetwood','Young','Fitzpatrick','Matsuyama'] },
+  { name: 'Group 3', players: ['Morikawa','Min Woo Lee','Rose','MacIntyre','Koepka'] },
+  { name: 'Group 4', players: ['Spieth','Reed','Gotterup','Hovland','Henley'] },
+  { name: 'Group 5', players: ['Si Woo Kim','Thomas','Bhatia','Cantlay','Scott'] },
+  { name: 'Group 6', players: ['Knapp','Lowry','Day','Spaun','Burns'] },
+  { name: 'Group 7', players: ['N. Hojgaard','Straka','McNealy','Hatton','Bridgeman'] },
+  { name: 'Group 8', players: ['Conners','Kityama','English','Griffin','Smith'] },
 ];
 
 // [tier0_pick_indices, tier1_pick_indices, ...] — 0-based index into each tier's players array
 const PICKS = {
+  // T1:Scheffler/Rahm/DeChambeau/McIlroy/Åberg
+  // T2:Schauffele/Fleetwood/Young/Fitzpatrick/Matsuyama
+  // T3:Morikawa/Min Woo Lee/Rose/MacIntyre/Koepka
+  // T4:Spieth/Reed/Gotterup/Hovland/Henley
+  // T5:Si Woo Kim/Thomas/Bhatia/Cantlay/Scott
+  // T6:Knapp/Lowry/Day/Spaun/Burns
+  // T7:N. Hojgaard/Straka/McNealy/Hatton/Bridgeman
+  // T8:Conners/Kityama/English/Griffin/Smith
   Conner: [[0,4],[0,1],[0,3],[2,4],[0,2],[0,4],[0,2],[0,2]],
-  Nick:   [[0,2],[0,1],[0,4],[1,3],[1,2],[1,3],[1,3],[0,2]],
-  Zach:   [[0,3],[1,2],[0,1],[1,3],[0,2],[1,2],[0,4],[0,4]],
-  Jaden:  [[0,2],[1,3],[2,3],[1,3],[2,4],[1,2],[3,4],[0,4]],
-  Dad:    [[0,4],[0,4],[0,2],[0,1],[0,2],[3,4],[1,4],[0,2]],
+  Nick:   [[0,2],[0,1],[0,4],[0,3],[2,3],[1,3],[1,3],[0,2]],
+  Zach:   [[0,3],[1,3],[0,1],[0,3],[0,2],[1,2],[0,4],[0,4]],
+  Jaden:  [[0,2],[2,3],[2,3],[1,3],[2,4],[1,2],[3,4],[0,3]],
+  Dad:    [[0,4],[0,4],[0,2],[0,1],[0,2],[3,4],[0,1],[0,2]],
 };
 
 const FULLNAMES = {
@@ -350,6 +358,46 @@ function fmt(s) {
   return s < 0 ? '' + s : '+' + s;
 }
 
+// Compute true total: sum of completed round to-pars + live topar for active round
+// Get to-par for a single completed round (stroke score -> to-par)
+function roundTopar(strokeScore) {
+  return (strokeScore !== null && strokeScore >= 65 && strokeScore <= 85) ? strokeScore - 72 : null;
+}
+
+// Get incremental to-par for the current active round only
+// ESPN topar is cumulative, so subtract completed rounds to get just this round
+function activeRoundTopar(r) {
+  if (r.topar === null) return null;
+  let completedSum = 0;
+  for (let k = 0; k < 4; k++) {
+    if (r.period === (k + 1)) break; // stop at current round
+    const rtp = roundTopar(r.rounds[k]);
+    if (rtp !== null) completedSum += rtp;
+  }
+  return r.topar - completedSum;
+}
+
+// True total: sum of all completed round to-pars + active round's incremental to-par
+function computeTotal(r) {
+  const par = 72;
+  let sum = 0;
+  let hasAny = false;
+  for (let k = 0; k < 4; k++) {
+    const rtp = roundTopar(r.rounds[k]);
+    if (rtp !== null) {
+      sum += rtp;
+      hasAny = true;
+    } else if (!r.cut && r.active && r.period === (k + 1) && r.topar !== null) {
+      // Active round: add incremental topar for this round only
+      sum += activeRoundTopar(r);
+      hasAny = true;
+      break;
+    }
+  }
+  if (!hasAny) return r.topar; // fallback
+  return sum;
+}
+
 // fmt with fallback label for truly unknown values
 function fmtOrDash(s) {
   return (s === null || s === undefined || isNaN(s)) ? '-' : fmt(s);
@@ -359,7 +407,7 @@ function assignPositions(entries) {
   const sorted = [...entries].sort((a, b) => {
     if (a.cut && !b.cut) return 1;
     if (!a.cut && b.cut) return -1;
-    return (a.topar ?? 99) - (b.topar ?? 99);
+    return (computeTotal(a) ?? 99) - (computeTotal(b) ?? 99);
   });
   const posMap = {};
   let i = 0;
@@ -580,22 +628,21 @@ function computeAllTotals() {
         while (rounds.length < 4) rounds.push(null);
         return { ...d, rounds };
       });
-      rows.sort((a, b) => { if (a.cut && !b.cut) return 1; if (!a.cut && b.cut) return -1; return (a.topar ?? 99) - (b.topar ?? 99); });
+      rows.sort((a, b) => { if (a.cut && !b.cut) return 1; if (!a.cut && b.cut) return -1; return (computeTotal(a) ?? 99) - (computeTotal(b) ?? 99); });
       return rows[0];
     });
     // Only include tiers where we have actual data; null means not yet known
-    const currentTotal = tierBests.reduce((s, b) => s + (b.topar ?? 0), 0);
+    const currentTotal = tierBests.reduce((s, b) => s + (computeTotal(b) ?? 0), 0);
     const roundTotals = [currentTotal, null, null, null];
     for (let ri = 1; ri < 4; ri++) {
       let sum = 0, complete = true;
       tierBests.forEach(best => {
-        let cum = 0;
+        // All rounds 0..ri must have valid stroke scores
         for (let k = 0; k <= ri; k++) {
           const rv = best.rounds[k];
-          if (rv === null || rv < 65 || rv > 85) { complete = false; break; }
-          cum += rv - 72;
+          if (rv === null || rv < 65 || rv > 85) { complete = false; return; }
+          sum += rv - 72;
         }
-        if (complete) sum += cum;
       });
       roundTotals[ri] = complete ? sum : null;
     }
@@ -626,7 +673,7 @@ function renderStandings() {
         const d = lookup(sn) || { topar: null, cut: false };
         return { sn, ...d };
       });
-      rows.sort((a, b) => { if (a.cut && !b.cut) return 1; if (!a.cut && b.cut) return -1; return (a.topar ?? 99) - (b.topar ?? 99); });
+      rows.sort((a, b) => { if (a.cut && !b.cut) return 1; if (!a.cut && b.cut) return -1; return (computeTotal(a) ?? 99) - (computeTotal(b) ?? 99); });
       return { tier: tier.name, best: rows[0] };
     });
     html += `<div class="pc${rank === 0 ? ' lead' : ''}" style="${rank === 0 ? 'border-color:' + color : ''}">
@@ -668,7 +715,7 @@ function renderScorecard() {
         while (rounds.length < 4) rounds.push(null);
         return { sn, tier: tier.name, ...d, rounds };
       });
-      rows.sort((a, b) => { if (a.cut && !b.cut) return 1; if (!a.cut && b.cut) return -1; return (a.topar ?? 99) - (b.topar ?? 99); });
+      rows.sort((a, b) => { if (a.cut && !b.cut) return 1; if (!a.cut && b.cut) return -1; return (computeTotal(a) ?? 99) - (computeTotal(b) ?? 99); });
       rows[0].isBest = true;
       return rows;
     });
@@ -693,13 +740,15 @@ function renderScorecard() {
           const isCompleted = rv !== null && rv >= 65 && rv <= 85;
           const isCurrentRound = !r.cut && !r.finished && r.period === (k + 1) && r.active;
           const isFuture = !isCompleted && !isCurrentRound;
-          return roundCell(isCompleted ? rv : null, isCurrentRound ? r.topar : null, r.thru, isCurrentRound, isFuture, r.isBest);
+          // For active round, pass incremental topar (just this round), not cumulative
+          const activeScore = isCurrentRound ? activeRoundTopar(r) : null;
+          return roundCell(isCompleted ? rv : null, activeScore, r.thru, isCurrentRound, isFuture, r.isBest);
         });
         html += `<tr class="${r.cut ? 'cut-row' : ''}${ri === 0 ? ' tier-start' : ''}">
           <td class="left"><span class="pn">${r.sn}</span><span class="tier-badge">${r.tier}</span></td>
           <td class="pos-cell">${r.pos || '-'}</td>
           ${roundCols.join('')}
-          <td class="${bg}">${fmt(r.topar)}</td>
+          <td class="${bg}">${fmt(computeTotal(r))}</td>
         </tr>`;
       });
     });
@@ -729,7 +778,7 @@ function renderLeaderboard() {
     .sort((a, b) => {
     if (a.cut && !b.cut) return 1;
     if (!a.cut && b.cut) return -1;
-    return (a.topar ?? 99) - (b.topar ?? 99);
+    return (computeTotal(a) ?? 99) - (computeTotal(b) ?? 99);
   });
 
   let html = `<p class="lb-note">Players in your pool are <span>highlighted</span>. Strikethrough = missed cut.</p>
@@ -747,7 +796,8 @@ function renderLeaderboard() {
       if (isActiveRound && p.topar !== null && p.topar !== undefined) {
         const tv = (p.thru && p.thru !== '-' && p.thru !== 'F') ? p.thru : '';
         const thruHtml = tv ? `<span class="rthru live"><span class="live-dot"></span>${tv}</span>` : `<span class="rthru live"><span class="live-dot"></span>Live</span>`;
-        return `<td><div class="rcell"><span class="rscore">${fmt(p.topar)}</span>${thruHtml}</div></td>`;
+        const incremental = activeRoundTopar(p);
+        return `<td><div class="rcell"><span class="rscore">${fmt(incremental)}</span>${thruHtml}</div></td>`;
       }
       return `<td style="color:var(--text-tertiary)">-</td>`;
     });
@@ -755,7 +805,7 @@ function renderLeaderboard() {
       <td class="pos-cell">${p.pos || '-'}</td>
       <td class="left"><span class="pn">${p.name}</span></td>
       ${roundCols.join('')}
-      <td>${fmt(p.topar)}</td>
+      <td>${fmt(computeTotal(p))}</td>
     </tr>`;
   });
 
