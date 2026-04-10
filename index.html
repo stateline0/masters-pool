@@ -315,7 +315,7 @@ const FULLNAMES = {
   'Conners':     'Corey Conners',
   'Kityama':     'Kurt Kitayama',
   'English':     'Harris English',
-  'Griffin':     'Lanto Griffin',
+  'Griffin':     'Ben Griffin',
   'Smith':       'Cameron Smith',
 };
 // ── END CONFIG ──────────────────────────────────────────────────────────────
@@ -362,7 +362,27 @@ function fmt(s) {
 // Compute true total: sum of completed round to-pars + live topar for active round
 // Get to-par for a single completed round (stroke score -> to-par)
 function roundTopar(strokeScore) {
-  return (strokeScore !== null && strokeScore >= 65 && strokeScore <= 85) ? strokeScore - 72 : null;
+  // 65-88: floor of 65 excludes par-3 contest scores (~63) while allowing realistic tournament scores
+  return (strokeScore !== null && strokeScore >= 65 && strokeScore <= 88) ? strokeScore - 72 : null;
+}
+
+// Is rounds[k] a valid completed tournament round for player r?
+// Period guard prevents par-3 contest scores from bleeding into round slots.
+function isCompletedRound(r, k) {
+  if (!r) return false;
+  const rv = (r.rounds || [])[k];
+  if (rv === null || rv === undefined) return false;
+  if (roundTopar(rv) === null) return false; // outside valid stroke range
+  // Accept as completed if player has advanced past this round (period > k+1),
+  // is fully finished, OR has played all 18 holes of this round (thru = 18 or F)
+  // and is currently in this round (period == k+1).
+  if (r.finished || r.period > (k + 1)) return true;
+  // Handle ESPN lag: player just finished round k but status not yet updated
+  if (r.period === (k + 1)) {
+    const thruVal = parseInt(r.thru);
+    if (thruVal === 18 || r.thru === 'F' || r.thru === 'Final') return true;
+  }
+  return false;
 }
 
 // Get incremental to-par for the current active round only
@@ -371,8 +391,10 @@ function activeRoundTopar(r) {
   let completedSum = 0;
   for (let k = 0; k < 4; k++) {
     if (r.period === (k + 1)) break;
-    const rtp = roundTopar((r.rounds || [])[k]);
-    if (rtp !== null) completedSum += rtp;
+    // Only count rounds that are truly completed tournament rounds (not par-3 contest)
+    if (isCompletedRound(r, k)) {
+      completedSum += roundTopar((r.rounds || [])[k]);
+    }
   }
   return r.topar - completedSum;
 }
@@ -384,9 +406,8 @@ function computeTotal(r) {
   let sum = 0;
   let hasAny = false;
   for (let k = 0; k < 4; k++) {
-    const rtp = roundTopar(rounds[k]);
-    if (rtp !== null) {
-      sum += rtp;
+    if (isCompletedRound(r, k)) {
+      sum += roundTopar(rounds[k]);
       hasAny = true;
     } else if (!r.cut && r.active && r.period === (k + 1) && r.topar !== null && r.topar !== undefined) {
       sum += activeRoundTopar(r);
@@ -667,7 +688,7 @@ function computeAllTotals() {
 
       for (const best of tierBests) {
         const rv = best.rounds[ri];
-        if (rv !== null && rv >= 62 && rv <= 88) {
+        if (isCompletedRound(best, ri)) {
           // Completed stroke score for this round — use it directly
           sum += rv - 72;
           anyStarted = true;
@@ -832,7 +853,7 @@ function renderScorecard() {
         const bg = r.isBest ? ' best-score' : '';
         const roundCols = r.rounds.map((rv, k) => {
           // A round is only "completed" if we have a realistic 18-hole stroke total
-          const isCompleted = rv !== null && rv >= 62 && rv <= 88;
+          const isCompleted = isCompletedRound(r, k);
           const isCurrentRound = !r.cut && !r.finished && r.period === (k + 1) && r.active;
           const isFuture = !isCompleted && !isCurrentRound;
           // For active round, pass incremental topar (just this round), not cumulative
@@ -886,7 +907,7 @@ function renderLeaderboard() {
   sorted.slice(0, 70).forEach(p => {
     const inPool = allPoolNames.has(norm(p.name)) || [...allPoolNames].some(n => norm(p.name).includes(n.split(' ').pop()) && n.split(' ').pop().length > 3);
     const roundCols = (p.rounds || [null,null,null,null]).slice(0,4).map((rv, k) => {
-      if (rv !== null && rv >= 62 && rv <= 88) return `<td><div class="rcell"><span class="rscore">${fmt(rv - 72)}</span><span class="rthru">${rv}</span></div></td>`;
+      if (isCompletedRound(p, k)) return `<td><div class="rcell"><span class="rscore">${fmt(rv - 72)}</span><span class="rthru">${rv}</span></div></td>`;
       const isActiveRound = !p.cut && !p.finished && p.period === (k+1) && p.active;
       if (isActiveRound && p.topar !== null && p.topar !== undefined) {
         const tv = (p.thru && p.thru !== '-' && p.thru !== 'F') ? p.thru : '';
