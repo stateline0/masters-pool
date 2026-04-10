@@ -362,8 +362,8 @@ function fmt(s) {
 // Compute true total: sum of completed round to-pars + live topar for active round
 // Get to-par for a single completed round (stroke score -> to-par)
 function roundTopar(strokeScore) {
-  // 65-88: floor of 65 excludes par-3 contest scores (~63) while allowing realistic tournament scores
-  return (strokeScore !== null && strokeScore >= 65 && strokeScore <= 88) ? strokeScore - 72 : null;
+  if (strokeScore === null || strokeScore === undefined || isNaN(strokeScore)) return null;
+  return strokeScore - 72;
 }
 
 // Is rounds[k] a valid completed tournament round for player r?
@@ -371,17 +371,8 @@ function roundTopar(strokeScore) {
 function isCompletedRound(r, k) {
   if (!r) return false;
   const rv = (r.rounds || [])[k];
-  if (rv === null || rv === undefined) return false;
-  if (roundTopar(rv) === null) return false; // outside valid stroke range
-  // Accept as completed if player has advanced past this round (period > k+1),
-  // is fully finished, OR has played all 18 holes of this round (thru = 18 or F)
-  // and is currently in this round (period == k+1).
-  if (r.finished || r.period > (k + 1)) return true;
-  // Note: we intentionally do NOT use thru=18 as a trigger here.
-  // During the brief window between a player finishing hole 18 and ESPN marking finished=true,
-  // the linescores slot may still contain a par-3 contest score (63-65).
-  // Falling back to activeRoundTopar (ESPN's cumulative topar) is accurate in that window.
-  return false;
+  if (rv === null || rv === undefined || isNaN(rv)) return false;
+  return r.finished || (r.period > (k + 1));
 }
 
 // Get incremental to-par for the current active round only
@@ -568,8 +559,7 @@ async function load() {
         const ls = c.linescores || [];
         const rounds = ls.map(l => {
           const v = parseInt(l.value);
-          // Only accept realistic 18-hole Augusta scores (65-85); excludes par-3 contest scores
-          return (!isNaN(v) && v >= 62 && v <= 88) ? v : null;
+          return (!isNaN(v)) ? v : null;
         });
         while (rounds.length < 4) rounds.push(null);
         // Use robust to-par parser
@@ -744,7 +734,7 @@ function getTodayScore(player, todayRound) {
   const k = todayRound - 1;
   const rv = player.rounds[k];
   // Completed today's round
-  if (rv !== null && rv >= 62 && rv <= 88) return rv - 72;
+  if (rv !== null && rv !== undefined) return rv - 72;
   // Active in today's round
   if (!player.cut && player.active && player.period === todayRound) {
     return activeRoundTopar(player);
@@ -906,7 +896,7 @@ function renderLeaderboard() {
   sorted.slice(0, 70).forEach(p => {
     const inPool = allPoolNames.has(norm(p.name)) || [...allPoolNames].some(n => norm(p.name).includes(n.split(' ').pop()) && n.split(' ').pop().length > 3);
     const roundCols = (p.rounds || [null,null,null,null]).slice(0,4).map((rv, k) => {
-      if (isCompletedRound(p, k)) return `<td><div class="rcell"><span class="rscore">${fmt(rv - 72)}</span><span class="rthru">${rv}</span></div></td>`;
+      if (rv !== null && rv !== undefined) return `<td><div class="rcell"><span class="rscore">${fmt(rv - 72)}</span><span class="rthru">${rv}</span></div></td>`;
       const isActiveRound = !p.cut && !p.finished && p.period === (k+1) && p.active;
       if (isActiveRound && p.topar !== null && p.topar !== undefined) {
         const tv = (p.thru && p.thru !== '-' && p.thru !== 'F') ? p.thru : '';
