@@ -667,11 +667,67 @@ function computeAllTotals() {
       });
       roundTotals[ri] = complete ? sum : null;
     }
-    return { name: pName, currentTotal, roundTotals };
+    return { name: pName, currentTotal, roundTotals, tierBests };
   });
 }
 
 const ORDINALS = ['1st','2nd','3rd','4th','5th'];
+
+// Determine which round is "today" based on playerMap state.
+// Returns round number (1-4) if any player is active or has completed that round today,
+// or null if no round has started yet (between rounds).
+function getTodayRound() {
+  const players = Object.values(playerMap);
+  if (!players.length) return null;
+  // Count how many players are in each period and active/finished-today
+  const periodCounts = [0, 0, 0, 0];
+  players.forEach(p => {
+    if (p.cut) return;
+    const r = p.period - 1;
+    if (r >= 0 && r < 4) {
+      // Active this round, or finished a round (rounds[r] has a score)
+      if (p.active || (p.rounds[r] !== null && p.rounds[r] >= 65 && p.rounds[r] <= 85)) {
+        periodCounts[r]++;
+      }
+    }
+  });
+  // Find the highest round with any activity
+  for (let r = 3; r >= 0; r--) {
+    if (periodCounts[r] > 0) return r + 1;
+  }
+  return null;
+}
+
+// Get today's incremental to-par for a single player in today's round
+function getTodayScore(player, todayRound) {
+  if (!player || !todayRound) return null;
+  const k = todayRound - 1;
+  const rv = player.rounds[k];
+  // Completed today's round
+  if (rv !== null && rv >= 65 && rv <= 85) return rv - 72;
+  // Active in today's round
+  if (!player.cut && player.active && player.period === todayRound) {
+    return activeRoundTopar(player);
+  }
+  // Not yet started today's round — return null (don't count as 0)
+  return null;
+}
+
+// Get a person's pool "today" score: sum of best players' today scores
+// Only counts groups where the best player has started today's round
+function getPoolTodayScore(tierBests, todayRound) {
+  if (!todayRound) return null;
+  let sum = 0;
+  let anyStarted = false;
+  for (const best of tierBests) {
+    const ts = getTodayScore(best, todayRound);
+    if (ts !== null) {
+      sum += ts;
+      anyStarted = true;
+    }
+  }
+  return anyStarted ? sum : null;
+}
 
 function renderAll() {
   renderStandings();
@@ -681,6 +737,7 @@ function renderAll() {
 
 function renderStandings() {
   const allScores = computeAllTotals();
+  const todayRound = getTodayRound();
   const ranked = [...allScores].sort((a, b) => a.currentTotal - b.currentTotal);
   const poolPos = {};
   ranked.forEach((p, i) => poolPos[p.name] = ORDINALS[i]);
@@ -688,27 +745,25 @@ function renderStandings() {
   let html = '<div class="standings-grid">';
   ranked.forEach((p, rank) => {
     const color = COLORS[p.name];
-    const tierBests = TIERS.map((tier, ti) => {
-      const rows = PICKS[p.name][ti].map(idx => {
-        const sn = tier.players[idx];
-        const d = lookup(sn) || { topar: null, cut: false };
-        return { sn, ...d };
-      });
-      rows.sort((a, b) => { if (a.cut && !b.cut) return 1; if (!a.cut && b.cut) return -1; return (computeTotal(a) ?? 99) - (computeTotal(b) ?? 99); });
-      return { tier: tier.name, best: rows[0] };
-    });
+    // Use tierBests from computeAllTotals — same data as scorecard Total column
+    const todayScore = getPoolTodayScore(p.tierBests, todayRound);
+    const todayLabel = todayRound ? `R${todayRound} today` : 'today';
     html += `<div class="pc${rank === 0 ? ' lead' : ''}" style="${rank === 0 ? 'border-color:' + color : ''}">
       <div class="pc-top">
         <span class="pc-name" style="color:${color}">${p.name}</span>
         <span class="pc-rank">${ORDINALS[rank]}</span>
       </div>
-      <div class="pc-score">${fmt(p.currentTotal)}</div>
+      <div style="display:flex;align-items:baseline;gap:10px;">
+        <div class="pc-score">${fmt(p.currentTotal)}</div>
+        <div style="font-size:13px;color:var(--text-secondary);">${todayScore !== null ? fmt(todayScore) + ' <span style=\"font-size:11px\">' + todayLabel + '</span>' : '<span style=\"font-size:11px\">-</span>'}</div>
+      </div>
       <div class="pc-sub">pool total</div>
       <div class="pc-rows">`;
-    tierBests.forEach(g => {
+    p.tierBests.forEach((best, ti) => {
+      const sn = best?.sn || TIERS[ti].players[PICKS[p.name][ti][0]];
       html += `<div class="pc-row">
-        <span class="gl">${g.tier}: ${g.best?.sn || '-'}</span>
-        <span class="gr">${fmt(g.best?.topar)}</span>
+        <span class="gl">${TIERS[ti].name}: ${sn || '-'}</span>
+        <span class="gr">${fmt(computeTotal(best))}</span>
       </div>`;
     });
     html += `</div></div>`;
