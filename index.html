@@ -425,8 +425,8 @@ function roundCell(completedStroke, activeTopar, thru, isActive, isFuture, isBes
   if (isFuture) return `<td class="${bg}" style="color:var(--text-tertiary);">-</td>`;
   let scoreStr = '', thruHtml = '';
   if (completedStroke !== null && completedStroke !== undefined) {
-    scoreStr = String(completedStroke);
-    thruHtml = '';
+    scoreStr = fmt(completedStroke - 72);
+    thruHtml = `<span class="rthru">${completedStroke}</span>`;
   } else if (isActive) {
     const tv = (thru && thru !== '-' && thru !== 'F') ? thru : '';
     if (tv) {
@@ -812,7 +812,7 @@ function renderLeaderboard() {
   sorted.slice(0, 70).forEach(p => {
     const inPool = allPoolNames.has(norm(p.name)) || [...allPoolNames].some(n => norm(p.name).includes(n.split(' ').pop()) && n.split(' ').pop().length > 3);
     const roundCols = (p.rounds || [null,null,null,null]).slice(0,4).map((rv, k) => {
-      if (rv !== null && rv >= 65 && rv <= 85) return `<td>${rv}</td>`;
+      if (rv !== null && rv >= 65 && rv <= 85) return `<td><div class="rcell"><span class="rscore">${fmt(rv - 72)}</span><span class="rthru">${rv}</span></div></td>`;
       const isActiveRound = !p.cut && !p.finished && p.period === (k+1) && p.active;
       if (isActiveRound && p.topar !== null && p.topar !== undefined) {
         const tv = (p.thru && p.thru !== '-' && p.thru !== 'F') ? p.thru : '';
